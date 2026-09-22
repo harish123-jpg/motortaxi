@@ -1,0 +1,128 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="numpy" />
+          <option value="Django" />
+          <option value="cryptography" />
+          <option value="appdirs" />
+          <option value="APScheduler" />
+          <option value="asgiref" />
+          <option value="asn1crypto" />
+          <option value="attrs" />
+          <option value="Automat" />
+          <option value="autopep8" />
+          <option value="beautifulsoup4" />
+          <option value="blessed" />
+          <option value="blinker" />
+          <option value="boto3" />
+          <option value="botocore" />
+          <option value="cached-property" />
+          <option value="cement" />
+          <option value="certifi" />
+          <option value="cffi" />
+          <option value="chardet" />
+          <option value="click" />
+          <option value="colorama" />
+          <option value="configobj" />
+          <option value="constantly" />
+          <option value="coreapi" />
+          <option value="coreschema" />
+          <option value="distlib" />
+          <option value="django-bootstrap4" />
+          <option value="django-cors-headers" />
+          <option value="django-fernet-fields" />
+          <option value="django-filter" />
+          <option value="django-nested-admin" />
+          <option value="django-phone-field" />
+          <option value="django-rest-swagger" />
+          <option value="django-storages" />
+          <option value="djangorestframework" />
+          <option value="djangorestframework-jwt" />
+          <option value="docker" />
+          <option value="docker-compose" />
+          <option value="docker-pycreds" />
+          <option value="dockerpty" />
+          <option value="docopt" />
+          <option value="docutils" />
+          <option value="drf-yasg" />
+          <option value="filelock" />
+          <option value="future" />
+          <option value="httplib2" />
+          <option value="hyperlink" />
+          <option value="idna" />
+          <option value="importlib-metadata" />
+          <option value="importlib-resources" />
+          <option value="incremental" />
+          <option value="inflection" />
+          <option value="itypes" />
+          <option value="Jinja2" />
+          <option value="jmespath" />
+          <option value="jsonpatch" />
+          <option value="jsonpointer" />
+          <option value="jsonschema" />
+          <option value="keyring" />
+          <option value="keyrings.alt" />
+          <option value="MarkupSafe" />
+          <option value="netifaces" />
+          <option value="oauthlib" />
+          <option value="openapi-codec" />
+          <option value="packaging" />
+          <option value="pathspec" />
+          <option value="psycopg2" />
+          <option value="pyarmor" />
+          <option value="pyasn1" />
+          <option value="pyasn1-modules" />
+          <option value="pycodestyle" />
+          <option value="pycparser" />
+          <option value="pycrypto" />
+          <option value="PyJWT" />
+          <option value="pyOpenSSL" />
+          <option value="pyparsing" />
+          <option value="pyserial" />
+          <option value="python-crontab" />
+          <option value="python-dateutil" />
+          <option value="python-monkey-business" />
+          <option value="pytz" />
+          <option value="pyxdg" />
+          <option value="PyYAML" />
+          <option value="requests" />
+          <option value="requests-unixsocket" />
+          <option value="ruamel.yaml" />
+          <option value="ruamel.yaml.clib" />
+          <option value="s3transfer" />
+          <option value="SecretStorage" />
+          <option value="semantic-version" />
+          <option value="service-identity" />
+          <option value="simplejson" />
+          <option value="six" />
+          <option value="soupsieve" />
+          <option value="sqlparse" />
+          <option value="termcolor" />
+          <option value="texttable" />
+          <option value="Twisted" />
+          <option value="typing-extensions" />
+          <option value="tzlocal" />
+          <option value="uritemplate" />
+          <option value="urllib3" />
+          <option value="virtualenv" />
+          <option value="wcwidth" />
+          <option value="websocket-client" />
+          <option value="zipp" />
+          <option value="zope.interface" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyStubPackagesAdvertiser" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="pandas" />
+          <option value="djangorestframework" />
+          <option value="celery" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

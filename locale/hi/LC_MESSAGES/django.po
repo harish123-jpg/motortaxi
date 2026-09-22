@@ -1,0 +1,110 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-22 07:09+0000\n"
+"PO-Revision-Date: 2026-09-22 07:09+0000\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: Hindi <LL@li.org>\n"
+"Language: hi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: drivers/models.py:9
+msgid "Online"
+msgstr "ऑनलाइन"
+
+#: drivers/models.py:10
+msgid "Offline"
+msgstr "ऑफलाइन"
+
+#: drivers/models.py:11
+msgid "Busy"
+msgstr "व्यस्त"
+
+#: drivers/models.py:12
+msgid "On Trip"
+msgstr "यात्रा पर"
+
+#: drivers/models.py:15 drivers/models.py:52 vehicles/models.py:58
+msgid "Pending"
+msgstr "लंबित"
+
+#: drivers/models.py:16 drivers/models.py:53
+msgid "Approved"
+msgstr "स्वीकृत"
+
+#: drivers/models.py:17 drivers/models.py:54 vehicles/models.py:60
+msgid "Rejected"
+msgstr "अस्वीकृत"
+
+#: drivers/models.py:46
+msgid "License"
+msgstr "लाइसेंस"
+
+#: drivers/models.py:47 vehicles/models.py:52
+msgid "Registration Certificate"
+msgstr "पंजीकरण प्रमाणपत्र"
+
+#: drivers/models.py:48 vehicles/models.py:53
+msgid "Insurance"
+msgstr "बीमा"
+
+#: drivers/models.py:49
+msgid "Photo"
+msgstr "फोटो"
+
+#: users/models.py:14
+msgid "Rider"
+msgstr "सवारी"
+
+#: users/models.py:15
+msgid "Driver"
+msgstr "चालक"
+
+#: users/models.py:16
+msgid "Admin"
+msgstr "प्रशासक"
+
+#: users/models.py:19
+msgid "Male"
+msgstr "पुरुष"
+
+#: users/models.py:20
+msgid "Female"
+msgstr "महिला"
+
+#: users/models.py:21
+msgid "Other"
+msgstr "अन्य"
+
+#: vehicles/models.py:10
+msgid "Car"
+msgstr "कार"
+
+#: vehicles/models.py:11
+msgid "Bike"
+msgstr "बाइक"
+
+#: vehicles/models.py:12
+msgid "Auto"
+msgstr "ऑटो"
+
+#: vehicles/models.py:54
+msgid "Pollution Certificate"
+msgstr "प्रदूषण प्रमाणपत्र"
+
+#: vehicles/models.py:55
+msgid "Permit"
+msgstr "परमिट"
+
+#: vehicles/models.py:59
+msgid "Verified"
+msgstr "सत्यापित"
