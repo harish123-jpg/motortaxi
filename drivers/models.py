@@ -44,6 +44,7 @@ class DriverProfile(models.Model):
         if self.verification_status != self.VerificationStatus.APPROVED:
             return {
                 "status": "DRIVER_DOCUMENTS_" + self.verification_status,
+                "verified": False,
                 "detail": "Driver documents not yet approved.",
             }
 
@@ -51,6 +52,7 @@ class DriverProfile(models.Model):
         if not vehicle:
             return {
                 "status": "VEHICLE_NOT_ADDED",
+                "verified": False,
                 "detail": "No active vehicle found. Please add a vehicle.",
             }
 
@@ -58,6 +60,7 @@ class DriverProfile(models.Model):
         if not vehicle_docs.exists():
             return {
                 "status": "VEHICLE_DOCUMENTS_MISSING",
+                "verified": False,
                 "detail": "No documents uploaded for this vehicle.",
             }
 
@@ -67,11 +70,13 @@ class DriverProfile(models.Model):
         if pending_docs.exists():
             return {
                 "status": "VEHICLE_DOCUMENTS_PENDING",
+                "verified": False,
                 "detail": f"{pending_docs.count()} vehicle document(s) not yet verified.",
             }
 
         return {
             "status": "APPROVED",
+            "verified": True,
             "detail": "Driver is fully verified and ready to go online.",
         }
 

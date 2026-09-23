@@ -122,3 +122,37 @@ class VehicleDocument(models.Model):
 
     def __str__(self):
         return f"{self.vehicle.plate_number} - {self.document_type}"
+
+
+class VehiclePricing(models.Model):
+
+    vehicle_type = models.CharField(
+        max_length=10,
+        choices=Vehicle.VehicleType.choices,
+        unique=True,
+    )
+
+    base_fare = models.DecimalField(max_digits=6, decimal_places=2)
+    per_km_rate = models.DecimalField(max_digits=6, decimal_places=2)
+    minimum_fare = models.DecimalField(max_digits=6, decimal_places=2)
+
+    platform_commission_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=20.0,
+    )
+
+    night_pricing_enabled = models.BooleanField(default=False)
+    night_start_hour = models.PositiveSmallIntegerField(default=23)
+    night_end_hour = models.PositiveSmallIntegerField(default=5)
+    night_multiplier = models.DecimalField(max_digits=4, decimal_places=2, default=1.5)
+
+    is_active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Vehicle Pricing"
+        verbose_name_plural = "Vehicle Pricing"
+
+    def __str__(self):
+        return self.vehicle_type

@@ -3,6 +3,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .country_codes import COUNTRY_CODES
 from .models import RiderProfile, User
@@ -11,7 +12,7 @@ from .serializers import (
     RiderProfileSerializer,
     SwitchRoleSerializer,
     UserSerializer,
-    CountryCodeSerializer,
+    CountryCodeSerializer, CustomTokenObtainPairSerializer,
 )
 
 
@@ -107,3 +108,7 @@ class CountryCodeListView(APIView):
     def get(self, request):
         serializer = CountryCodeSerializer(COUNTRY_CODES, many=True)
         return Response(serializer.data)
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = CustomTokenObtainPairSerializer

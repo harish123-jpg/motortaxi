@@ -32,6 +32,7 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
+    "daphne",
     'modeltranslation',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -43,8 +44,13 @@ INSTALLED_APPS = [
     'users',
     'drivers',
     'vehicles',
+    "location_search",
+    'core',
+    'rides',
 
-    'rest_framework',
+
+    "rest_framework",
+    "channels",
     'rest_framework_simplejwt.token_blacklist',
 ]
 
@@ -78,6 +84,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'motoride.wsgi.application'
+ASGI_APPLICATION = "motoride.asgi.application"
 AUTH_USER_MODEL = "users.User"
 
 # Database

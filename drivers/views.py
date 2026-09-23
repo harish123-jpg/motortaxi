@@ -3,7 +3,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from django.contrib.gis.geos import Point
 from .models import DriverDocument, DriverProfile
 from .permissions import IsDriver
 from .serializers import DriverDocumentSerializer, DriverProfileCreateSerializer, DriverProfileSerializer
@@ -115,11 +115,11 @@ class GoOnlineView(APIView):
             )
 
         verification = profile.get_full_verification_status()
-        if verification != "APPROVED":
+        if not verification["verified"]:          # ✅ dict ke andar ka boolean check karo
             return Response(
                 {
-                    "detail": "Driver is not fully verified yet.",
-                    "verification_status": verification,
+                    "detail": verification["detail"],
+                    "verification_status": verification["status"],
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )
@@ -127,7 +127,6 @@ class GoOnlineView(APIView):
         profile.status = DriverProfile.Status.ONLINE
         profile.save(update_fields=["status", "updated_at"])
         return Response(DriverProfileSerializer(profile).data)
-
 
 class GoOfflineView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsDriver]
@@ -147,6 +146,56 @@ class GoOfflineView(APIView):
                 status=status.HTTP_200_OK,
             )
 
+        if profile.status == DriverProfile.Status.ON_TRIP:
+            return Response(
+                {"detail": "Cannot go offline while on an active trip."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         profile.status = DriverProfile.Status.OFFLINE
         profile.save(update_fields=["status", "updated_at"])
         return Response(DriverProfileSerializer(profile).data)
+
+
+
+class UpdateLocationView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsDriver]
+
+    def post(self, request):
+        if not hasattr(request.user, "driver_profile"):
+            return Response(
+                {"detail": "Driver profile not found. Please complete onboarding first."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        lat = request.data.get("lat")
+        lng = request.data.get("lng")
+
+        if lat is None or lng is None:
+            return Response(
+                {"detail": "lat and lng are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            lat = float(lat)
+            lng = float(lng)
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "lat and lng must be valid numbers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+            return Response(
+                {"detail": "lat/lng out of valid range."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        profile = request.user.driver_profile
+        profile.current_location = Point(lng, lat, srid=4326)
+        profile.save(update_fields=["current_location", "updated_at"])
+
+        return Response(
+            {"detail": "Location updated.", "lat": lat, "lng": lng}
+        )

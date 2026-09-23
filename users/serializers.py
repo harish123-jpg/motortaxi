@@ -112,14 +112,23 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         user = self.user
 
-        data["user"] = UserSerializer(user).data
-        data["role"] = user.active_role
+        response = {
+            "access": data["access"],
+            "refresh": data["refresh"],
+            "role": user.active_role,
+        }
 
         if user.active_role == User.Role.DRIVER:
             if user.is_driver:
                 result = user.driver_profile.get_full_verification_status()
-                data["verification_status"] = result
             else:
-                data["verification_status"] = "NOT_STARTED"
+                result = {
+                    "status": "NOT_STARTED",
+                    "verified": False,
+                    "detail": "Driver profile not created yet.",
+                }
 
-        return data
+            response["verified"] = result["verified"]
+            response["detail"] = result["detail"]
+
+        return response
