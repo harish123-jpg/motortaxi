@@ -6,7 +6,9 @@ from rest_framework.response import Response
 from vehicles.models import Vehicle
 from .models import Ride
 from .serializers import RideSerializer
-from .services import FareEstimateService
+from .fare_estimate import FareEstimateService
+from .matching import DriverMatchingService
+from .notifications import notify_eligible_drivers
 
 
 # ---------------- FARE ESTIMATE (stateless) ----------------
@@ -27,7 +29,21 @@ def fare_estimate(request):
                         status=status.HTTP_400_BAD_REQUEST)
 
     result = FareEstimateService.estimate(p_lat, p_lon, d_lat, d_lon)
-    return Response(result, status=status.HTTP_200_OK)
+
+    customer_response = {
+        "distance_km": result["distance_km"],
+        "duration_min": result["duration_min"],
+        "currency": result["currency"],
+        "fares": [
+            {
+                "vehicle_type": f["vehicle_type"],
+                "customer_fare": f["customer_fare"],
+                "night_pricing_applied": f["night_pricing_applied"],
+            }
+            for f in result["fares"]
+        ],
+    }
+    return Response(customer_response, status=status.HTTP_200_OK)
 
 
 # ---------------- BOOK RIDE ----------------
@@ -77,6 +93,16 @@ def book_ride(request):
         status=Ride.Status.SEARCHING,
     )
 
+    eligible_drivers = DriverMatchingService.find_eligible_drivers(ride)
+
+    if eligible_drivers:
+        notify_eligible_drivers(
+            ride=ride,
+            driver_payout=matching_fare["driver_payout"],
+            currency=estimate["currency"],
+            eligible_drivers=eligible_drivers,
+        )
+
     return Response(
         {
             "ride_id": ride.id,
@@ -84,6 +110,7 @@ def book_ride(request):
             "distance_km": ride.distance_km,
             "estimated_fare": ride.estimated_fare,
             "currency": estimate["currency"],
+            "drivers_notified": len(eligible_drivers),
         },
         status=status.HTTP_201_CREATED,
     )

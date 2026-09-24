@@ -33,6 +33,22 @@ class DriverConsumer(AsyncWebsocketConsumer):
         if hasattr(self, "group_name"):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
+    # -------- NAYA METHOD, YAHIN ADD KIYA HAI --------
+    async def ride_request(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "ride_request",
+            "ride_id": event["ride_id"],
+            "vehicle_type": event["vehicle_type"],
+            "pickup_address": event["pickup_address"],
+            "pickup_lat": event["pickup_lat"],
+            "pickup_lon": event["pickup_lon"],
+            "drop_address": event["drop_address"],
+            "distance_km": event["distance_km"],
+            "driver_payout": event["driver_payout"],
+            "currency": event["currency"],
+        }))
+    # --------------------------------------------------
+
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
@@ -77,7 +93,6 @@ class DriverConsumer(AsyncWebsocketConsumer):
             "lng": lng
         }))
 
-        # Agar driver kisi trip pe hai, uska location assigned rider ko bhi bhejo
         if profile.status == DriverProfile.Status.ON_TRIP:
             rider_group = await self.get_current_rider_group(profile)
             if rider_group:
@@ -106,8 +121,6 @@ class DriverConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_current_rider_group(self, profile):
-        # Trip model banne ke baad yahan active trip se rider_id nikalna hoga
-        # abhi placeholder hai, trip module banate waqt isko implement karenge
         return None
 
 
@@ -133,11 +146,8 @@ class RiderConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive(self, text_data):
-        # Abhi rider se server ko kuch bhejne ki zaroorat nahi
-        # (rider sirf listen karega — driver location, trip status updates)
         pass
 
-    # Yeh method group_send se trigger hota hai (DriverConsumer se)
     async def driver_location(self, event):
         await self.send(text_data=json.dumps({
             "type": "driver_location",

@@ -1,6 +1,9 @@
-from rides.models import Ride
+from django.contrib.gis.db.models.functions import Distance
+from django.contrib.gis.geos import Point
+from django.contrib.gis.measure import D
+
 from drivers.models import DriverProfile
-from .fare_estimate import FareEstimateService
+from .models import Ride
 
 
 class DriverMatchingService:
@@ -9,25 +12,19 @@ class DriverMatchingService:
 
     @staticmethod
     def find_eligible_drivers(ride: Ride):
+        pickup_point = Point(float(ride.pickup_lon), float(ride.pickup_lat), srid=4326)
 
-        candidates = DriverProfile.objects.filter(
-            is_online=True,
-            is_busy=False,
-            vehicles__vehicle_type=ride.vehicle_type,
-            vehicles__is_active=True,
-        ).distinct()
-
-        eligible = []
-        for driver in candidates:
-            if driver.current_lat is None or driver.current_lon is None:
-                continue
-
-            distance = FareEstimateService._haversine_distance(
-                float(ride.pickup_lat), float(ride.pickup_lon),
-                float(driver.current_lat), float(driver.current_lon),
+        candidates = (
+            DriverProfile.objects.filter(
+                status=DriverProfile.Status.ONLINE,
+                current_location__isnull=False,
+                vehicles__vehicle_type=ride.vehicle_type,
+                vehicles__is_active=True,
             )
-            if distance <= DriverMatchingService.SEARCH_RADIUS_KM:
-                eligible.append((driver, distance))
+            .annotate(distance=Distance("current_location", pickup_point))
+            .filter(distance__lte=D(km=DriverMatchingService.SEARCH_RADIUS_KM))
+            .order_by("distance")
+            .distinct()
+        )
 
-        eligible.sort(key=lambda x: x[1])
-        return eligible
+        return list(candidates)

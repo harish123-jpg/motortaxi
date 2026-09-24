@@ -112,3 +112,15 @@ class CountryCodeListView(APIView):
 class CustomTokenObtainPairView(TokenObtainPairView):
     permission_classes = [permissions.AllowAny]
     serializer_class = CustomTokenObtainPairSerializer
+
+
+class DeleteAccountView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request):
+        user = request.user
+        user.delete()
+        return Response(
+            {"detail": "Account deleted successfully."},
+            status=status.HTTP_200_OK,
+        )

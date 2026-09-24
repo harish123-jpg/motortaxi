@@ -9,13 +9,13 @@ class Ride(models.Model):
 
     class Status(models.TextChoices):
         SEARCHING = "SEARCHING", _("Searching")
-        ACCEPTED  = "ACCEPTED",  _("Accepted")
-        ONGOING   = "ONGOING",   _("Ongoing")
+        ACCEPTED = "ACCEPTED", _("Accepted")
+        ONGOING = "ONGOING", _("Ongoing")
         COMPLETED = "COMPLETED", _("Completed")
         CANCELLED = "CANCELLED", _("Cancelled")
 
     class CancelledBy(models.TextChoices):
-        RIDER  = "RIDER",  _("Rider")
+        RIDER = "RIDER", _("Rider")
         DRIVER = "DRIVER", _("Driver")
 
     rider = models.ForeignKey(
@@ -28,7 +28,8 @@ class Ride(models.Model):
     driver = models.ForeignKey(
         "drivers.DriverProfile",
         on_delete=models.SET_NULL,
-        null=True, blank=True,
+        null=True,
+        blank=True,
         related_name="assigned_rides",
         verbose_name=_("driver"),
     )
