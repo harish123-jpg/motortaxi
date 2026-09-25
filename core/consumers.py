@@ -33,7 +33,6 @@ class DriverConsumer(AsyncWebsocketConsumer):
         if hasattr(self, "group_name"):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
-    # -------- NAYA METHOD, YAHIN ADD KIYA HAI --------
     async def ride_request(self, event):
         await self.send(text_data=json.dumps({
             "type": "ride_request",
@@ -47,7 +46,12 @@ class DriverConsumer(AsyncWebsocketConsumer):
             "driver_payout": event["driver_payout"],
             "currency": event["currency"],
         }))
-    # --------------------------------------------------
+
+    async def ride_taken(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "ride_taken",
+            "ride_id": event["ride_id"],
+        }))
 
     async def receive(self, text_data):
         try:
@@ -59,6 +63,46 @@ class DriverConsumer(AsyncWebsocketConsumer):
 
         if msg_type == "location_update":
             await self.handle_location_update(data)
+        elif msg_type == "accept_ride":
+            await self.handle_accept_ride(data)
+        elif msg_type == "reject_ride":
+            await self.handle_reject_ride(data)
+
+    async def handle_accept_ride(self, data):
+        ride_id = data.get("ride_id")
+        if ride_id is None:
+            await self.send(text_data=json.dumps({
+                "type": "error",
+                "detail": "ride_id is required."
+            }))
+            return
+
+        profile = await self.get_profile()
+        result = await self.try_accept_ride(ride_id, profile)
+
+        await self.send(text_data=json.dumps({
+            "type": "accept_success" if result["success"] else "accept_failed",
+            "ride_id": ride_id,
+            "detail": result["detail"],
+        }))
+
+    async def handle_reject_ride(self, data):
+        ride_id = data.get("ride_id")
+        if ride_id is None:
+            await self.send(text_data=json.dumps({
+                "type": "error",
+                "detail": "ride_id is required."
+            }))
+            return
+
+        profile = await self.get_profile()
+        result = await self.try_reject_ride(ride_id, profile)
+
+        await self.send(text_data=json.dumps({
+            "type": "reject_success" if result["success"] else "reject_failed",
+            "ride_id": ride_id,
+            "detail": result["detail"],
+        }))
 
     async def handle_location_update(self, data):
         profile = await self.get_profile()
@@ -120,6 +164,16 @@ class DriverConsumer(AsyncWebsocketConsumer):
         profile.save(update_fields=["current_location", "updated_at"])
 
     @database_sync_to_async
+    def try_accept_ride(self, ride_id, profile):
+        from rides.acceptance import accept_ride
+        return accept_ride(ride_id, profile)
+
+    @database_sync_to_async
+    def try_reject_ride(self, ride_id, profile):
+        from rides.acceptance import reject_ride
+        return reject_ride(ride_id, profile)
+
+    @database_sync_to_async
     def get_current_rider_group(self, profile):
         return None
 
@@ -153,4 +207,16 @@ class RiderConsumer(AsyncWebsocketConsumer):
             "type": "driver_location",
             "lat": event["lat"],
             "lng": event["lng"],
+        }))
+
+    async def driver_assigned(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "driver_assigned",
+            "ride_id": event["ride_id"],
+            "driver_name": event["driver_name"],
+            "driver_phone": event["driver_phone"],
+            "driver_rating": event["driver_rating"],
+            "vehicle_make": event["vehicle_make"],
+            "vehicle_model": event["vehicle_model"],
+            "vehicle_plate": event["vehicle_plate"],
         }))

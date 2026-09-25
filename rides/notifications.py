@@ -1,20 +1,21 @@
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
+from .models import RideOffer
 
-def notify_eligible_drivers(ride, driver_payout, currency, eligible_drivers):
-    """
-    Pushes a "ride_request" event to each eligible driver's personal
-    WebSocket group (f"driver_{user_id}"), matching DriverConsumer's
-    group_add in consumers.py.
 
-    driver_payout is computed ONCE for the booked vehicle_type (not
-    per-driver -- all drivers of the same vehicle_type get the same
-    payout for this ride) and sent to every candidate at once. Whoever
-    accepts first gets the ride (accept/reject logic comes next).
+def create_and_notify_offers(ride, driver_payout, currency, eligible_drivers):
     """
+    For every eligible driver:
+    1. Creates a RideOffer row (status=SENT) -- this is the audit trail.
+    2. Pushes a "ride_request" event to that driver's WebSocket group.
+    """
+    RideOffer.objects.bulk_create([
+        RideOffer(ride=ride, driver=driver, status=RideOffer.Status.SENT)
+        for driver in eligible_drivers
+    ])
+
     channel_layer = get_channel_layer()
-
     payload = {
         "type": "ride_request",
         "ride_id": ride.id,
@@ -29,5 +30,4 @@ def notify_eligible_drivers(ride, driver_payout, currency, eligible_drivers):
     }
 
     for driver in eligible_drivers:
-        group_name = f"driver_{driver.user_id}"
-        async_to_sync(channel_layer.group_send)(group_name, payload)
+        async_to_sync(channel_layer.group_send)(f"driver_{driver.user_id}", payload)

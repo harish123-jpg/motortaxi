@@ -8,7 +8,7 @@ from .models import Ride
 from .serializers import RideSerializer
 from .fare_estimate import FareEstimateService
 from .matching import DriverMatchingService
-from .notifications import notify_eligible_drivers
+from .notifications import create_and_notify_offers
 
 
 # ---------------- FARE ESTIMATE (stateless) ----------------
@@ -96,7 +96,7 @@ def book_ride(request):
     eligible_drivers = DriverMatchingService.find_eligible_drivers(ride)
 
     if eligible_drivers:
-        notify_eligible_drivers(
+        create_and_notify_offers(
             ride=ride,
             driver_payout=matching_fare["driver_payout"],
             currency=estimate["currency"],

@@ -82,6 +82,12 @@ class Ride(models.Model):
         verbose_name=_("status"),
     )
 
+    notified_driver_user_ids = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name=_("notified driver user ids"),
+    )
+
     cancelled_by = models.CharField(
         max_length=10,
         choices=CancelledBy.choices,
@@ -114,3 +120,54 @@ class Ride(models.Model):
 
     def __str__(self):
         return f"Ride #{self.id} - {self.vehicle_type} - {self.status}"
+
+
+class RideOffer(models.Model):
+
+    class Status(models.TextChoices):
+        SENT = "SENT", _("Sent")
+        ACCEPTED = "ACCEPTED", _("Accepted")
+        REJECTED = "REJECTED", _("Rejected")
+        EXPIRED = "EXPIRED", _("Expired")
+
+    ride = models.ForeignKey(
+        Ride,
+        on_delete=models.CASCADE,
+        related_name="offers",
+        verbose_name=_("ride"),
+    )
+
+    driver = models.ForeignKey(
+        "drivers.DriverProfile",
+        on_delete=models.CASCADE,
+        related_name="ride_offers",
+        verbose_name=_("driver"),
+    )
+
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.SENT,
+        verbose_name=_("status"),
+    )
+
+    sent_at = models.DateTimeField(auto_now_add=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-sent_at"]
+        verbose_name = _("Ride Offer")
+        verbose_name_plural = _("Ride Offers")
+        indexes = [
+            models.Index(fields=["ride", "status"]),
+            models.Index(fields=["driver", "status"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ride", "driver"],
+                name="unique_ride_offer_per_driver",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Offer: Ride #{self.ride_id} -> Driver {self.driver_id} ({self.status})"
