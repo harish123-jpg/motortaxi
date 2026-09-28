@@ -1,12 +1,21 @@
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.gis.geos import Point
-from .models import DriverDocument, DriverProfile
+
+from .models import DriverDocument, DriverProfile, DriverWallet
 from .permissions import IsDriver
-from .serializers import DriverDocumentSerializer, DriverProfileCreateSerializer, DriverProfileSerializer
+from .serializers import (
+    DriverDocumentSerializer,
+    DriverProfileCreateSerializer,
+    DriverProfileSerializer,
+    DriverWalletSerializer,
+    WalletTransactionSerializer,
+)
+from .wallet import get_earnings_summary
 
 
 class DriverProfileView(APIView):
@@ -115,7 +124,7 @@ class GoOnlineView(APIView):
             )
 
         verification = profile.get_full_verification_status()
-        if not verification["verified"]:          # ✅ dict ke andar ka boolean check karo
+        if not verification["verified"]:
             return Response(
                 {
                     "detail": verification["detail"],
@@ -127,6 +136,7 @@ class GoOnlineView(APIView):
         profile.status = DriverProfile.Status.ONLINE
         profile.save(update_fields=["status", "updated_at"])
         return Response(DriverProfileSerializer(profile).data)
+
 
 class GoOfflineView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsDriver]
@@ -155,7 +165,6 @@ class GoOfflineView(APIView):
         profile.status = DriverProfile.Status.OFFLINE
         profile.save(update_fields=["status", "updated_at"])
         return Response(DriverProfileSerializer(profile).data)
-
 
 
 class UpdateLocationView(APIView):
@@ -199,3 +208,30 @@ class UpdateLocationView(APIView):
         return Response(
             {"detail": "Location updated.", "lat": lat, "lng": lng}
         )
+
+
+# ---------------- WALLET ----------------
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def wallet_balance(request):
+    profile = get_object_or_404(DriverProfile, user=request.user)
+    wallet, _ = DriverWallet.objects.get_or_create(driver=profile)
+    return Response(DriverWalletSerializer(wallet).data)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def wallet_transactions(request):
+    profile = get_object_or_404(DriverProfile, user=request.user)
+    wallet, _ = DriverWallet.objects.get_or_create(driver=profile)
+    transactions = wallet.transactions.all()[:100]
+    return Response(WalletTransactionSerializer(transactions, many=True).data)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def wallet_summary(request):
+    profile = get_object_or_404(DriverProfile, user=request.user)
+    summary = get_earnings_summary(profile)
+    return Response(summary)

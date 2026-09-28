@@ -1,6 +1,5 @@
 from rest_framework import serializers
-
-from .models import DriverDocument, DriverProfile
+from .models import DriverWallet, WalletTransaction,DriverDocument, DriverProfile
 
 
 class DriverProfileCreateSerializer(serializers.ModelSerializer):
@@ -43,3 +42,15 @@ class DriverDocumentSerializer(serializers.ModelSerializer):
         model = DriverDocument
         fields = ("id", "document_type", "file", "status", "rejection_reason", "uploaded_at")
         read_only_fields = ("id", "status", "rejection_reason", "uploaded_at")
+
+
+class WalletTransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WalletTransaction
+        fields = ["id", "ride_id", "transaction_type", "reason", "amount", "balance_after", "created_at"]
+
+
+class DriverWalletSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DriverWallet
+        fields = ["balance", "updated_at"]

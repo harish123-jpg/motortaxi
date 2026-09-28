@@ -80,6 +80,7 @@ class DriverProfile(models.Model):
             "detail": "Driver is fully verified and ready to go online.",
         }
 
+
 class DriverDocument(models.Model):
     class DocumentType(models.TextChoices):
         LICENSE = "LICENSE", _("License")
@@ -110,3 +111,48 @@ class DriverDocument(models.Model):
 
     def __str__(self):
         return f"{self.driver_id} - {self.document_type}"
+
+
+class DriverWallet(models.Model):
+    driver = models.OneToOneField(
+        DriverProfile, on_delete=models.CASCADE, related_name="wallet"
+    )
+    balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Wallet({self.driver_id}) = {self.balance}"
+
+
+class WalletTransaction(models.Model):
+    class TransactionType(models.TextChoices):
+        CREDIT = "CREDIT", _("Credit")
+        DEBIT = "DEBIT", _("Debit")
+
+    class Reason(models.TextChoices):
+        RIDE_EARNING = "RIDE_EARNING", _("Ride Earning")
+        ADJUSTMENT = "ADJUSTMENT", _("Manual Adjustment")
+        WITHDRAWAL = "WITHDRAWAL", _("Withdrawal")
+
+    wallet = models.ForeignKey(
+        DriverWallet, on_delete=models.CASCADE, related_name="transactions"
+    )
+    ride = models.ForeignKey(
+        "rides.Ride", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="wallet_transactions",
+    )
+    transaction_type = models.CharField(max_length=10, choices=TransactionType.choices)
+    reason = models.CharField(
+        max_length=20, choices=Reason.choices, default=Reason.RIDE_EARNING
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    balance_after = models.DecimalField(max_digits=12, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["wallet", "-created_at"])]
+
+    def __str__(self):
+        return f"{self.transaction_type} {self.amount} -> wallet {self.wallet_id}"

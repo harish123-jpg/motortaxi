@@ -1,8 +1,14 @@
+import random
+
 from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from vehicles.models import Vehicle
+
+
+def generate_otp():
+    return str(random.randint(1000, 9999))
 
 
 class Ride(models.Model):
@@ -13,6 +19,17 @@ class Ride(models.Model):
         ONGOING = "ONGOING", _("Ongoing")
         COMPLETED = "COMPLETED", _("Completed")
         CANCELLED = "CANCELLED", _("Cancelled")
+
+    class PaymentMethod(models.TextChoices):
+        CASH = "CASH", _("Cash")
+        UPI = "UPI", _("UPI")
+        CARD = "CARD", _("Card")
+        MOBILE_MONEY = "MOBILE_MONEY", _("Mobile Money")
+
+    class PaymentStatus(models.TextChoices):
+        PENDING = "PENDING", _("Pending")
+        PAID = "PAID", _("Paid")
+        FAILED = "FAILED", _("Failed")
 
     class CancelledBy(models.TextChoices):
         RIDER = "RIDER", _("Rider")
@@ -75,11 +92,56 @@ class Ride(models.Model):
         verbose_name=_("estimated fare"),
     )
 
+    driver_payout = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        null=True, blank=True,
+        verbose_name=_("driver payout (locked at booking time)"),
+    )
+
+    final_fare = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        null=True, blank=True,
+        verbose_name=_("final fare"),
+    )
+
+    payment_method = models.CharField(
+        max_length=15,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.CASH,
+        verbose_name=_("payment method"),
+    )
+
+    payment_status = models.CharField(
+        max_length=10,
+        choices=PaymentStatus.choices,
+        default=PaymentStatus.PENDING,
+        verbose_name=_("payment status"),
+    )
+
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
         default=Status.SEARCHING,
         verbose_name=_("status"),
+    )
+
+    otp = models.CharField(
+        max_length=4,
+        default=generate_otp,
+        verbose_name=_("start trip otp"),
+    )
+
+    arrived_at = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name=_("driver arrived at"),
+    )
+    started_at = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name=_("trip started at"),
+    )
+    completed_at = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name=_("trip completed at"),
     )
 
     notified_driver_user_ids = models.JSONField(

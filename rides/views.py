@@ -66,6 +66,13 @@ def book_ride(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    payment_method = data.get("payment_method", Ride.PaymentMethod.CASH)
+    if payment_method not in Ride.PaymentMethod.values:
+        return Response(
+            {"error": f"Invalid payment_method. Must be one of {Ride.PaymentMethod.values}."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     try:
         p_lat = float(data["pickup_lat"]); p_lon = float(data["pickup_lon"])
         d_lat = float(data["drop_lat"]);   d_lon = float(data["drop_lon"])
@@ -88,8 +95,10 @@ def book_ride(request):
         pickup_lat=p_lat, pickup_lon=p_lon, pickup_address=data["pickup_address"],
         drop_lat=d_lat,   drop_lon=d_lon,   drop_address=data["drop_address"],
         vehicle_type=vehicle_type,
+        payment_method=payment_method,
         distance_km=estimate["distance_km"],
         estimated_fare=matching_fare["customer_fare"],
+        driver_payout=matching_fare["driver_payout"],
         status=Ride.Status.SEARCHING,
     )
 
@@ -111,6 +120,7 @@ def book_ride(request):
             "estimated_fare": ride.estimated_fare,
             "currency": estimate["currency"],
             "drivers_notified": len(eligible_drivers),
+            "otp": ride.otp,
         },
         status=status.HTTP_201_CREATED,
     )

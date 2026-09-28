@@ -53,6 +53,13 @@ class DriverConsumer(AsyncWebsocketConsumer):
             "ride_id": event["ride_id"],
         }))
 
+    async def ride_cancelled(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "ride_cancelled",
+            "ride_id": event["ride_id"],
+            "cancelled_by": event["cancelled_by"],
+        }))
+
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
@@ -67,6 +74,52 @@ class DriverConsumer(AsyncWebsocketConsumer):
             await self.handle_accept_ride(data)
         elif msg_type == "reject_ride":
             await self.handle_reject_ride(data)
+        elif msg_type == "arrived":
+            await self.handle_trip_action(data, "mark_arrived")
+        elif msg_type == "start_trip":
+            await self.handle_start_trip(data)
+        elif msg_type == "complete_trip":
+            await self.handle_trip_action(data, "complete_trip")
+        elif msg_type == "cancel_ride":
+            await self.handle_cancel_ride(data)
+
+    async def handle_start_trip(self, data):
+        ride_id = data.get("ride_id")
+        otp = data.get("otp")
+
+        if ride_id is None or otp is None:
+            await self.send(text_data=json.dumps({
+                "type": "error",
+                "detail": "ride_id and otp are required."
+            }))
+            return
+
+        profile = await self.get_profile()
+        result = await self.run_start_trip(ride_id, profile, otp)
+
+        await self.send(text_data=json.dumps({
+            "type": "start_trip_success" if result["success"] else "start_trip_failed",
+            "ride_id": ride_id,
+            "detail": result["detail"],
+        }))
+
+    async def handle_trip_action(self, data, action_name):
+        ride_id = data.get("ride_id")
+        if ride_id is None:
+            await self.send(text_data=json.dumps({
+                "type": "error",
+                "detail": "ride_id is required."
+            }))
+            return
+
+        profile = await self.get_profile()
+        result = await self.run_trip_action(action_name, ride_id, profile)
+
+        await self.send(text_data=json.dumps({
+            "type": f"{action_name}_success" if result["success"] else f"{action_name}_failed",
+            "ride_id": ride_id,
+            "detail": result["detail"],
+        }))
 
     async def handle_accept_ride(self, data):
         ride_id = data.get("ride_id")
@@ -100,6 +153,25 @@ class DriverConsumer(AsyncWebsocketConsumer):
 
         await self.send(text_data=json.dumps({
             "type": "reject_success" if result["success"] else "reject_failed",
+            "ride_id": ride_id,
+            "detail": result["detail"],
+        }))
+
+    async def handle_cancel_ride(self, data):
+        ride_id = data.get("ride_id")
+        if ride_id is None:
+            await self.send(text_data=json.dumps({
+                "type": "error",
+                "detail": "ride_id is required."
+            }))
+            return
+
+        reason = data.get("reason", "")
+        profile = await self.get_profile()
+        result = await self.try_driver_cancel(ride_id, profile, reason)
+
+        await self.send(text_data=json.dumps({
+            "type": "cancel_ride_success" if result["success"] else "cancel_ride_failed",
             "ride_id": ride_id,
             "detail": result["detail"],
         }))
@@ -174,8 +246,25 @@ class DriverConsumer(AsyncWebsocketConsumer):
         return reject_ride(ride_id, profile)
 
     @database_sync_to_async
+    def try_driver_cancel(self, ride_id, profile, reason):
+        from rides.cancellation import cancel_ride_by_driver
+        return cancel_ride_by_driver(ride_id, profile, reason)
+
+    @database_sync_to_async
+    def run_trip_action(self, action_name, ride_id, profile):
+        from rides import trip
+        action = getattr(trip, action_name)
+        return action(ride_id, profile)
+
+    @database_sync_to_async
+    def run_start_trip(self, ride_id, profile, otp):
+        from rides.trip import start_trip
+        return start_trip(ride_id, profile, otp)
+
+    @database_sync_to_async
     def get_current_rider_group(self, profile):
-        return None
+        from rides.trip import get_ongoing_rider_group
+        return get_ongoing_rider_group(profile)
 
 
 class RiderConsumer(AsyncWebsocketConsumer):
@@ -200,7 +289,38 @@ class RiderConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive(self, text_data):
-        pass
+        try:
+            data = json.loads(text_data)
+        except json.JSONDecodeError:
+            return
+
+        msg_type = data.get("type")
+
+        if msg_type == "cancel_ride":
+            await self.handle_cancel_ride(data)
+
+    async def handle_cancel_ride(self, data):
+        ride_id = data.get("ride_id")
+        if ride_id is None:
+            await self.send(text_data=json.dumps({
+                "type": "error",
+                "detail": "ride_id is required."
+            }))
+            return
+
+        reason = data.get("reason", "")
+        result = await self.try_rider_cancel(ride_id, reason)
+
+        await self.send(text_data=json.dumps({
+            "type": "cancel_ride_success" if result["success"] else "cancel_ride_failed",
+            "ride_id": ride_id,
+            "detail": result["detail"],
+        }))
+
+    @database_sync_to_async
+    def try_rider_cancel(self, ride_id, reason):
+        from rides.cancellation import cancel_ride_by_rider
+        return cancel_ride_by_rider(ride_id, self.user, reason)
 
     async def driver_location(self, event):
         await self.send(text_data=json.dumps({
@@ -219,4 +339,31 @@ class RiderConsumer(AsyncWebsocketConsumer):
             "vehicle_make": event["vehicle_make"],
             "vehicle_model": event["vehicle_model"],
             "vehicle_plate": event["vehicle_plate"],
+        }))
+
+    async def driver_arrived(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "driver_arrived",
+            "ride_id": event["ride_id"],
+        }))
+
+    async def trip_started(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "trip_started",
+            "ride_id": event["ride_id"],
+        }))
+
+    async def trip_completed(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "trip_completed",
+            "ride_id": event["ride_id"],
+            "final_fare": event["final_fare"],
+            "payment_status": event["payment_status"],
+        }))
+
+    async def ride_cancelled(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "ride_cancelled",
+            "ride_id": event["ride_id"],
+            "cancelled_by": event["cancelled_by"],
         }))
