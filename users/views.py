@@ -124,3 +124,31 @@ class DeleteAccountView(APIView):
             {"detail": "Account deleted successfully."},
             status=status.HTTP_200_OK,
         )
+
+
+class ProfileView(APIView):
+    """GET /api/auth/profile/ - user info plus the profile for their active role."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        data = {
+            "user": UserSerializer(user, context={"request": request}).data,
+            "active_role": user.active_role,
+        }
+
+        if user.active_role == User.Role.RIDER:
+            profile, _ = RiderProfile.objects.get_or_create(user=user)
+            data["rider_profile"] = RiderProfileSerializer(profile).data
+
+        elif user.active_role == User.Role.DRIVER:
+            if user.is_driver:
+                data["driver_verification"] = user.driver_profile.get_full_verification_status()
+            else:
+                data["driver_verification"] = {
+                    "status": "NOT_STARTED",
+                    "verified": False,
+                    "detail": "Driver profile not created yet.",
+                }
+
+        return Response(data)

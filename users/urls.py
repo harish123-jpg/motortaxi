@@ -2,7 +2,7 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .views import MeView, RegisterView, RiderProfileView, SwitchRoleView, CountryCodeListView, \
-    CustomTokenObtainPairView, DeleteAccountView
+    CustomTokenObtainPairView, DeleteAccountView, ProfileView
 
 urlpatterns = [
     path("register/", RegisterView.as_view(), name="auth-register"),
@@ -13,4 +13,5 @@ urlpatterns = [
     path("switch-role/", SwitchRoleView.as_view(), name="switch-role"),
     path("country-codes/", CountryCodeListView.as_view(), name="country-codes"),
     path("delete-account/", DeleteAccountView.as_view(), name="delete-account"),
+    path("profile/", ProfileView.as_view(), name="auth-profile"),
 ]

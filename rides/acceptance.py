@@ -4,6 +4,7 @@ from channels.layers import get_channel_layer
 
 from drivers.models import DriverProfile
 from .models import Ride, RideOffer
+from .trip import _haversine_distance, ASSUMED_AVG_SPEED_KMPH
 
 
 def accept_ride(ride_id, driver_profile: DriverProfile):
@@ -66,6 +67,15 @@ def _notify_rider(ride: Ride, driver_profile: DriverProfile):
     channel_layer = get_channel_layer()
     vehicle = driver_profile.vehicles.filter(is_active=True).first()
 
+    distance_remaining_km = None
+    eta_min = None
+    if driver_profile.current_location:
+        distance_remaining_km = _haversine_distance(
+            driver_profile.current_location.y, driver_profile.current_location.x,
+            float(ride.pickup_lat), float(ride.pickup_lon),
+        )
+        eta_min = max(1, round((distance_remaining_km / ASSUMED_AVG_SPEED_KMPH) * 60))
+
     payload = {
         "type": "driver_assigned",
         "ride_id": ride.id,
@@ -75,6 +85,8 @@ def _notify_rider(ride: Ride, driver_profile: DriverProfile):
         "vehicle_make": vehicle.make if vehicle else None,
         "vehicle_model": vehicle.model if vehicle else None,
         "vehicle_plate": vehicle.plate_number if vehicle else None,
+        "distance_remaining_km": distance_remaining_km,
+        "eta_min": eta_min,
     }
 
     async_to_sync(channel_layer.group_send)(f"rider_{ride.rider_id}", payload)
