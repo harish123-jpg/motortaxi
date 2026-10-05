@@ -233,3 +233,55 @@ class RideOffer(models.Model):
 
     def __str__(self):
         return f"Offer: Ride #{self.ride_id} -> Driver {self.driver_id} ({self.status})"
+
+class Rating(models.Model):
+    ride = models.OneToOneField(
+        Ride,
+        on_delete=models.CASCADE,
+        related_name="rating",
+        verbose_name=_("ride"),
+    )
+
+    rider = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="ratings_given",
+        verbose_name=_("rider"),
+    )
+
+    driver = models.ForeignKey(
+        "drivers.DriverProfile",
+        on_delete=models.CASCADE,
+        related_name="ratings_received",
+        verbose_name=_("driver"),
+    )
+
+    stars = models.PositiveSmallIntegerField(
+        verbose_name=_("stars")
+    )
+
+    review = models.TextField(
+        blank=True,
+        verbose_name=_("review")
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = _("Rating")
+        verbose_name_plural = _("Ratings")
+
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(stars__gte=1) & models.Q(stars__lte=5),
+                name="rating_stars_between_1_and_5",
+            ),
+        ]
+
+        indexes = [
+            models.Index(fields=["driver"]),
+        ]
+
+    def __str__(self):
+        return f"Ride #{self.ride_id}: {self.stars} stars"

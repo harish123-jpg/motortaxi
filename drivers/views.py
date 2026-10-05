@@ -6,6 +6,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.gis.geos import Point
 
+from vehicles.models import VehicleDocument
+from vehicles.serializers import VehicleDocumentSerializer
 from .models import DriverDocument, DriverProfile, DriverWallet
 from .permissions import IsDriver
 from .serializers import (
@@ -87,7 +89,27 @@ class DriverDocumentListCreateView(generics.ListCreateAPIView):
     serializer_class = DriverDocumentSerializer
 
     def get_queryset(self):
-        return DriverDocument.objects.filter(driver__user=self.request.user)
+        return DriverDocument.objects.filter(
+            driver__user=self.request.user
+        )
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+
+        vehicle_documents = VehicleDocument.objects.filter(
+            vehicle__driver__user=request.user
+        )
+
+        response.data = {
+            "driver_documents": response.data,
+            "vehicle_documents": VehicleDocumentSerializer(
+                vehicle_documents,
+                many=True,
+                context={"request": request}
+            ).data,
+        }
+
+        return response
 
     def perform_create(self, serializer):
         if not hasattr(self.request.user, "driver_profile"):
@@ -99,6 +121,7 @@ class DriverDocumentListCreateView(generics.ListCreateAPIView):
 
         try:
             serializer.save(driver=profile)
+
         except IntegrityError:
             raise generics.ValidationError(
                 {"detail": "A document of this type already exists for this driver. Use update instead."}
