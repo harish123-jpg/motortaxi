@@ -139,7 +139,8 @@ class VehiclePricing(models.Model):
     platform_commission_percent = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=20.0,
+        default=0.0,
+        blank=True, null=True
     )
 
     night_pricing_enabled = models.BooleanField(default=False)
