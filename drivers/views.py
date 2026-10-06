@@ -1,5 +1,6 @@
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -8,7 +9,7 @@ from django.contrib.gis.geos import Point
 
 from vehicles.models import VehicleDocument
 from vehicles.serializers import VehicleDocumentSerializer
-from .models import DriverDocument, DriverProfile, DriverWallet
+from .models import DriverDocument, DriverProfile, DriverWallet, DriverSession
 from .permissions import IsDriver
 from .serializers import (
     DriverDocumentSerializer,
@@ -158,6 +159,7 @@ class GoOnlineView(APIView):
 
         profile.status = DriverProfile.Status.ONLINE
         profile.save(update_fields=["status", "updated_at"])
+        DriverSession.objects.create(driver=profile)
         return Response(DriverProfileSerializer(profile).data)
 
 
@@ -187,6 +189,16 @@ class GoOfflineView(APIView):
 
         profile.status = DriverProfile.Status.OFFLINE
         profile.save(update_fields=["status", "updated_at"])
+
+        open_session = (
+            DriverSession.objects.filter(driver=profile, ended_at__isnull=True)
+            .order_by("-started_at")
+            .first()
+        )
+        if open_session:
+            open_session.ended_at = timezone.now()
+            open_session.save(update_fields=["ended_at"])
+
         return Response(DriverProfileSerializer(profile).data)
 
 
@@ -258,3 +270,13 @@ def wallet_summary(request):
     profile = get_object_or_404(DriverProfile, user=request.user)
     summary = get_earnings_summary(profile)
     return Response(summary)
+
+
+# ---------------- HOME STATS ----------------
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def driver_home_stats(request):
+    profile = get_object_or_404(DriverProfile, user=request.user)
+    from .stats import get_driver_home_stats
+    return Response(get_driver_home_stats(profile))

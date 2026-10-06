@@ -227,24 +227,39 @@ def cancel_ride(request, ride_id):
 
     return Response(RideSerializer(ride, context={"request": request}).data)
 
-
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def rate_ride(request, ride_id):
+    print("AUTH USER:", request.user)
+    print("AUTH USER ID:", request.user.id)
+    print("RIDE ID:", ride_id)
+
     stars = request.data.get("stars")
     review = request.data.get("review", "")
 
     try:
         stars = int(stars)
     except (TypeError, ValueError):
-        return Response({"error": "stars must be an integer from 1 to 5."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": "stars must be an integer from 1 to 5."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    result = rate_driver(ride_id, request.user, stars, review)
+    result = rate_driver(
+        ride_id,
+        request.user,
+        stars,
+        review
+    )
 
     if not result["success"]:
-        return Response({"error": result["detail"]}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": result["detail"]},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     rating = result["rating"]
+
     return Response(
         {
             "ride_id": rating.ride_id,

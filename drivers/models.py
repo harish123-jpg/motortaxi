@@ -156,3 +156,17 @@ class WalletTransaction(models.Model):
 
     def __str__(self):
         return f"{self.transaction_type} {self.amount} -> wallet {self.wallet_id}"
+
+
+class DriverSession(models.Model):
+    driver = models.ForeignKey(
+        DriverProfile, on_delete=models.CASCADE, related_name="sessions"
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["driver", "started_at"])]
+
+    def __str__(self):
+        return f"Session: driver {self.driver_id} ({self.started_at} - {self.ended_at or 'ongoing'})"

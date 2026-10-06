@@ -1,30 +1,18 @@
-"""
-Location Search Views
-----------------------
-Two endpoints for the React Native app:
-1. GET /api/location/search/?q=<text>          -> autocomplete suggestions
-2. GET /api/location/reverse/?lat=..&lon=..     -> address from coordinates
-"""
-
 import requests
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from .services import LocationSearchService
 
 
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def location_search(request):
     query = request.GET.get("q", "")
     limit = int(request.GET.get("limit", 5))
 
-    # Reference point to measure distance from -- NOT always the user's
-    # current GPS:
-    #   - Pickup search -> frontend sends current GPS lat/lon here
-    #   - Drop search   -> frontend sends the already-selected PICKUP
-    #                      location's lat/lon here instead
-    # Same endpoint handles both; frontend decides what to send.
     ref_lat = request.GET.get("lat")
     ref_lon = request.GET.get("lon")
 
@@ -58,6 +46,7 @@ def location_search(request):
 
 
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def reverse_geocode(request):
     lat = request.GET.get("lat")
     lon = request.GET.get("lon")

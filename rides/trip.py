@@ -1,11 +1,12 @@
 import math
-
+from django.utils import timezone
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db import transaction
 
 from drivers.models import DriverProfile
 from drivers.wallet import credit_ride_earning
+from .fare_estimate import CURRENCY
 from .models import Ride, RideOffer
 
 EARTH_RADIUS_KM = 6371.0
@@ -41,10 +42,8 @@ def mark_arrived(ride_id, driver_profile: DriverProfile):
     except Ride.DoesNotExist:
         return {"success": False, "detail": "Ride not found or not in ACCEPTED state."}
 
-    # OPTIONAL: Ride model mein arrived_at field add karne ke baad ye 2 lines uncomment karo
-    # (file ke top pe:  from django.utils import timezone)
-    # ride.arrived_at = timezone.now()
-    # ride.save(update_fields=["arrived_at", "updated_at"])
+    ride.arrived_at = timezone.now()
+    ride.save(update_fields=["arrived_at", "updated_at"])
 
     _notify_rider(ride, "driver_arrived", {})
     return {"success": True, "detail": "Marked as arrived."}
@@ -60,7 +59,8 @@ def start_trip(ride_id, driver_profile: DriverProfile, otp: str):
         return {"success": False, "detail": "Invalid OTP."}
 
     ride.status = Ride.Status.ONGOING
-    ride.save(update_fields=["status", "updated_at"])
+    ride.started_at = timezone.now()
+    ride.save(update_fields=["status", "started_at", "updated_at"])
 
     driver_profile.status = DriverProfile.Status.ON_TRIP
     driver_profile.save(update_fields=["status", "updated_at"])
@@ -86,7 +86,8 @@ def complete_trip(ride_id, driver_profile: DriverProfile):
         ride.status = Ride.Status.COMPLETED
         ride.final_fare = ride.estimated_fare
         ride.payment_status = Ride.PaymentStatus.PAID
-        ride.save(update_fields=["status", "final_fare", "payment_status", "updated_at"])
+        ride.completed_at = timezone.now()
+        ride.save(update_fields=["status", "final_fare", "payment_status", "completed_at", "updated_at"])
 
         driver_profile.status = DriverProfile.Status.ONLINE
         driver_profile.total_trips += 1
@@ -297,7 +298,7 @@ def get_rider_current_state(user):
         "estimated_duration_min": _attr(ride, "estimated_duration_min"),
         "estimated_fare": _num(ride.estimated_fare),
         "final_fare": _num(_attr(ride, "final_fare")),
-        "currency": _attr(ride, "currency"),
+        "currency": CURRENCY,
         "payment_method": _attr(ride, "payment_method"),
         "payment_status": _attr(ride, "payment_status"),
         "otp": _attr(ride, "otp") if ride.status == Ride.Status.ACCEPTED else None,
@@ -442,7 +443,7 @@ def get_driver_current_state(driver_profile: DriverProfile):
         "estimated_fare": _num(ride.estimated_fare),
         "final_fare": _num(_attr(ride, "final_fare")),
         "driver_payout": _num(_attr(ride, "driver_payout")),
-        "currency": _attr(ride, "currency"),
+        "currency": CURRENCY,
         "payment_method": _attr(ride, "payment_method"),
         "payment_status": _attr(ride, "payment_status"),
         "created_at": _iso(_attr(ride, "created_at")),
@@ -499,7 +500,7 @@ def _pending_offers(driver_profile, d_lat, d_lng):
             "drop_address": ride.drop_address,
             "distance_km": _num(_attr(ride, "distance_km")),
             "driver_payout": _num(_attr(ride, "driver_payout")),
-            "currency": _attr(ride, "currency"),
+            "currency": CURRENCY,
             "driver_to_pickup_km": to_pickup,
             "driver_to_pickup_eta_min": _eta(to_pickup),
         })
