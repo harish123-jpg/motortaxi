@@ -1,63 +1,18 @@
-"""
-Location Search Service (LocationIQ)
---------------------------------------
-Wraps LocationIQ API calls (Autocomplete/Search + Reverse Geocode).
-
-Why LocationIQ (and not public Nominatim or Ola Maps)?
-- App is GLOBAL, not India-only -> Ola Maps won't work (India-only).
-- Public Nominatim rate-limits/blocks aggressively during testing ->
-  not reliable even for a demo.
-- LocationIQ is built on OpenStreetMap data (so response shape is very
-  close to Nominatim) but runs on LocationIQ's own reliable
-  infrastructure, with a real free tier and simple api_key auth.
-
-Get your API key: https://locationiq.com (sign up -> dashboard -> token)
-
-Why a service class?
-- Sab LocationIQ-specific logic ek hi jagah rehta hai.
-- Kal agar provider switch karna ho, sirf ye file badlegi -- views.py,
-  urls.py, ya frontend contract kuch nahi badlega.
-"""
-
 import math
 
 import requests
 
 LOCATIONIQ_BASE_URL = "https://us1.locationiq.com/v1"
-API_KEY = "pk.ce7837964601b53273715468aaf2a11c"  # <-- apni actual key yaha daalo (env var se lena better hai)
+API_KEY = "pk.ce7837964601b53273715468aaf2a11c"
 REQUEST_TIMEOUT = 10  # seconds
 EARTH_RADIUS_KM = 6371.0
 
 
 class LocationSearchService:
-    """Single point of contact for all location/geocoding calls."""
 
     @staticmethod
     def search(query: str, limit: int = 5, country_code: str = None,
                ref_lat: float = None, ref_lon: float = None):
-        """
-        Text -> list of matching places (autocomplete-style search).
-
-        Args:
-            query: user typed text, e.g. "Sector 17 Chandigarh" or "Times Square"
-            limit: max results to return
-            country_code: optional ISO 2-letter code to bias results
-                          (leave None for a truly global search)
-            ref_lat, ref_lon: the "reference point" to measure distance
-                          from. THIS CHANGES DEPENDING ON CONTEXT:
-                            - Pickup search  -> pass the user's current
-                              GPS location as ref_lat/ref_lon.
-                            - Drop search    -> pass the already-selected
-                              PICKUP location's lat/lon as ref_lat/ref_lon
-                              (not the user's GPS).
-                          Frontend decides what to send; this function
-                          just measures distance from whatever point it
-                          is given.
-
-        Returns:
-            List[dict]: cleaned place results, sorted nearest-first
-                        when ref_lat/ref_lon are given
-        """
         if not query or not query.strip():
             return []
 
@@ -92,11 +47,6 @@ class LocationSearchService:
 
     @staticmethod
     def _haversine_distance(lat1, lon1, lat2, lon2) -> float:
-        """
-        Straight-line distance (in km) between two lat/lon points.
-        Pure math -- no external API call, so this is completely free
-        and works for both pickup search and drop search alike.
-        """
         phi1, phi2 = math.radians(lat1), math.radians(lat2)
         d_phi = math.radians(lat2 - lat1)
         d_lambda = math.radians(lon2 - lon1)
@@ -111,17 +61,6 @@ class LocationSearchService:
 
     @staticmethod
     def reverse_geocode(lat: float, lon: float):
-        """
-        lat/lon -> human-readable address.
-        Useful for "use my current location" feature.
-
-        Args:
-            lat: latitude
-            lon: longitude
-
-        Returns:
-            dict | None: cleaned place result, or None if nothing found
-        """
         params = {
             "key": API_KEY,
             "lat": lat,

@@ -1,11 +1,12 @@
 import json
-
+import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.gis.geos import Point
 
 from drivers.models import DriverProfile
 
+logger = logging.getLogger(__name__)
 
 class DriverConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -29,7 +30,6 @@ class DriverConsumer(AsyncWebsocketConsumer):
             "detail": "Driver WebSocket connected."
         }))
 
-        # Connect hote hi driver ko uska poora current status bhejo
         await self.send_current_state()
 
     async def disconnect(self, close_code):
@@ -45,6 +45,7 @@ class DriverConsumer(AsyncWebsocketConsumer):
         }))
 
     async def ride_request(self, event):
+        logger.info("ride_request reached consumer user=%s channel=%s", self.user.id, self.channel_name)
         await self.send(text_data=json.dumps({
             "type": "ride_request",
             "ride_id": event["ride_id"],
@@ -58,13 +59,8 @@ class DriverConsumer(AsyncWebsocketConsumer):
             "currency": event["currency"],
         }))
 
-    async def ride_taken(self, event):
-        await self.send(text_data=json.dumps({
-            "type": "ride_taken",
-            "ride_id": event["ride_id"],
-        }))
-
     async def ride_cancelled(self, event):
+        logger.info("ride_cancelled reached consumer user=%s event=%s", self.user.id, event)
         await self.send(text_data=json.dumps({
             "type": "ride_cancelled",
             "ride_id": event["ride_id"],
@@ -217,10 +213,7 @@ class DriverConsumer(AsyncWebsocketConsumer):
         if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
             return
 
-        # Save location + calculate distance/ETA in a single DB thread hop
         progress = await self.save_location_and_get_progress(profile, lat, lng)
-
-        # Back to the driver: status + ride_id + target + distance + eta
         await self.send(text_data=json.dumps({
             "type": "location_ack",
             "lat": lat,
@@ -232,7 +225,6 @@ class DriverConsumer(AsyncWebsocketConsumer):
             "eta_min": progress["eta_min"] if progress else None,
         }))
 
-        # Forward to the rider (only when there is an active ride)
         if progress:
             await self.channel_layer.group_send(
                 f"rider_{progress['rider_id']}",
@@ -313,8 +305,6 @@ class RiderConsumer(AsyncWebsocketConsumer):
             "type": "connected",
             "detail": "Rider WebSocket connected."
         }))
-
-        # Connect hote hi rider ko uska poora current status bhejo
         await self.send_current_state()
 
     async def disconnect(self, close_code):
