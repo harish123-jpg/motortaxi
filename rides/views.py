@@ -4,13 +4,16 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+from drivers.models import DriverProfile
 from vehicles.models import Vehicle
-from .models import Ride
-from .ratings import rate_driver
-from .serializers import RideSerializer
+from .cancellation import cancel_ride_by_rider, expire_stale_searching_rides
 from .fare_estimate import FareEstimateService
 from .matching import DriverMatchingService
+from .models import Ride
 from .notifications import create_and_notify_offers
+from .ratings import rate_driver
+from .serializers import DriverRideSerializer, RideSerializer
+from .trip import _pending_offers
 
 
 class RidePagination(PageNumberPagination):
@@ -58,6 +61,8 @@ def fare_estimate(request):
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def book_ride(request):
+    expire_stale_searching_rides()
+
     data = request.data
     required = ["pickup_lat", "pickup_lon", "pickup_address", "drop_lat", "drop_lon", "drop_address", "vehicle_type"]
     missing = [f for f in required if f not in data]
@@ -88,6 +93,15 @@ def book_ride(request):
         d_lon = float(data["drop_lon"])
     except (TypeError, ValueError):
         return Response({"error": "All lat/lon must be numbers."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if Ride.objects.filter(
+        rider=request.user,
+        status__in=[Ride.Status.SEARCHING, Ride.Status.ACCEPTED, Ride.Status.ONGOING],
+    ).exists():
+        return Response(
+            {"error": "You already have an active ride."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     estimate = FareEstimateService.estimate(p_lat, p_lon, d_lat, d_lon)
 
@@ -145,37 +159,61 @@ def book_ride(request):
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
 def my_rides(request):
-    rides = Ride.objects.filter(rider=request.user).select_related("rider", "driver__user").order_by("-created_at")
+    rides = (
+        Ride.objects.filter(rider=request.user)
+        .select_related("rider", "driver__user")
+        .order_by("-created_at")
+    )
 
     paginator = RidePagination()
     page = paginator.paginate_queryset(rides, request)
-
     serializer = RideSerializer(page, many=True, context={"request": request})
-
     return paginator.get_paginated_response(serializer.data)
 
 
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
 def driver_rides(request):
-    if not hasattr(request.user, "driver_profile"):
+    try:
+        driver_profile = DriverProfile.objects.get(user=request.user)
+    except DriverProfile.DoesNotExist:
         return Response({"detail": "Driver profile not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    driver_profile = request.user.driver_profile
-
-    rides = Ride.objects.filter(driver=driver_profile).select_related("rider", "driver__user").order_by("-created_at")
+    rides = (
+        Ride.objects.filter(driver=driver_profile)
+        .select_related("rider", "driver__user")
+        .order_by("-created_at")
+    )
 
     paginator = RidePagination()
     page = paginator.paginate_queryset(rides, request)
-
-    serializer = RideSerializer(page, many=True, context={"request": request})
-
+    serializer = DriverRideSerializer(page, many=True, context={"request": request})
     return paginator.get_paginated_response(serializer.data)
 
 
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
+def driver_ride_requests(request):
+    expire_stale_searching_rides()
+
+    try:
+        profile = DriverProfile.objects.get(user=request.user)
+    except DriverProfile.DoesNotExist:
+        return Response({"detail": "Driver profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    loc = profile.current_location
+    d_lat = loc.y if loc else None
+    d_lng = loc.x if loc else None
+
+    requests_list = _pending_offers(profile, d_lat, d_lng)
+    return Response({"count": len(requests_list), "requests": requests_list})
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
 def active_ride(request):
+    expire_stale_searching_rides()
+
     ride = (
         Ride.objects
         .filter(
@@ -201,39 +239,30 @@ def ride_detail(request, ride_id):
         id=ride_id,
         rider=request.user,
     )
-
     return Response(RideSerializer(ride, context={"request": request}).data)
 
 
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def cancel_ride(request, ride_id):
-    ride = get_object_or_404(
-        Ride.objects.select_related("rider", "driver__user"),
-        id=ride_id,
-        rider=request.user,
+    result = cancel_ride_by_rider(
+        ride_id, request.user, request.data.get("reason", "")
     )
 
-    if ride.status not in [Ride.Status.SEARCHING, Ride.Status.ACCEPTED]:
-        return Response(
-            {"error": f"Ride cannot be cancelled in '{ride.status}' state."},
-            status=status.HTTP_400_BAD_REQUEST,
+    if not result["success"]:
+        code = (
+            status.HTTP_404_NOT_FOUND
+            if result["detail"] == "Ride not found."
+            else status.HTTP_400_BAD_REQUEST
         )
+        return Response({"error": result["detail"]}, status=code)
 
-    ride.status = Ride.Status.CANCELLED
-    ride.cancelled_by = Ride.CancelledBy.RIDER
-    ride.cancel_reason = request.data.get("reason", "")
-    ride.save(update_fields=["status", "cancelled_by", "cancel_reason", "updated_at"])
+    return Response(RideSerializer(result["ride"], context={"request": request}).data)
 
-    return Response(RideSerializer(ride, context={"request": request}).data)
 
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def rate_ride(request, ride_id):
-    print("AUTH USER:", request.user)
-    print("AUTH USER ID:", request.user.id)
-    print("RIDE ID:", ride_id)
-
     stars = request.data.get("stars")
     review = request.data.get("review", "")
 
@@ -245,18 +274,10 @@ def rate_ride(request, ride_id):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    result = rate_driver(
-        ride_id,
-        request.user,
-        stars,
-        review
-    )
+    result = rate_driver(ride_id, request.user, stars, review)
 
     if not result["success"]:
-        return Response(
-            {"error": result["detail"]},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": result["detail"]}, status=status.HTTP_400_BAD_REQUEST)
 
     rating = result["rating"]
 

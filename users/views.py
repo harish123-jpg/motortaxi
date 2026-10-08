@@ -127,7 +127,6 @@ class DeleteAccountView(APIView):
 
 
 class ProfileView(APIView):
-    """GET /api/auth/profile/ - user info plus the profile for their active role."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
@@ -143,12 +142,20 @@ class ProfileView(APIView):
 
         elif user.active_role == User.Role.DRIVER:
             if user.is_driver:
-                data["driver_verification"] = user.driver_profile.get_full_verification_status()
+                driver = user.driver_profile
+                data["driver_verification"] = driver.get_full_verification_status()
+                data["driver_profile"] = {
+                    "driver_id": driver.id,
+                    "rating_avg": float(driver.rating_avg) if driver.rating_avg is not None else 0.0,
+                    "total_trips": driver.total_trips,
+                    "status": driver.status,
+                }
             else:
                 data["driver_verification"] = {
                     "status": "NOT_STARTED",
                     "verified": False,
                     "detail": "Driver profile not created yet.",
                 }
+                data["driver_profile"] = None
 
         return Response(data)

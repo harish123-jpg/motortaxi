@@ -1,12 +1,15 @@
 import json
 import logging
-from channels.generic.websocket import AsyncWebsocketConsumer
+
 from channels.db import database_sync_to_async
+from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.gis.geos import Point
 
 from drivers.models import DriverProfile
+from rides.expiry import ensure_expiry_loop
 
 logger = logging.getLogger(__name__)
+
 
 class DriverConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -24,6 +27,7 @@ class DriverConsumer(AsyncWebsocketConsumer):
         self.group_name = f"driver_{self.user.id}"
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
+        ensure_expiry_loop()
 
         await self.send(text_data=json.dumps({
             "type": "connected",
@@ -59,12 +63,25 @@ class DriverConsumer(AsyncWebsocketConsumer):
             "currency": event["currency"],
         }))
 
+    async def ride_taken(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "ride_taken",
+            "ride_id": event["ride_id"],
+        }))
+
     async def ride_cancelled(self, event):
         logger.info("ride_cancelled reached consumer user=%s event=%s", self.user.id, event)
         await self.send(text_data=json.dumps({
             "type": "ride_cancelled",
             "ride_id": event["ride_id"],
-            "cancelled_by": event["cancelled_by"],
+            "cancelled_by": event.get("cancelled_by"),
+        }))
+
+    async def ride_expired(self, event):
+        logger.info("ride_expired reached consumer user=%s event=%s", self.user.id, event)
+        await self.send(text_data=json.dumps({
+            "type": "ride_expired",
+            "ride_id": event["ride_id"],
         }))
 
     async def receive(self, text_data):
@@ -91,6 +108,8 @@ class DriverConsumer(AsyncWebsocketConsumer):
             await self.handle_cancel_ride(data)
         elif msg_type == "get_status":
             await self.send_current_state()
+        elif msg_type == "ping":
+            await self.send(text_data=json.dumps({"type": "pong"}))
 
     async def handle_start_trip(self, data):
         ride_id = data.get("ride_id")
@@ -300,6 +319,7 @@ class RiderConsumer(AsyncWebsocketConsumer):
         self.group_name = f"rider_{self.user.id}"
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
+        ensure_expiry_loop()
 
         await self.send(text_data=json.dumps({
             "type": "connected",
@@ -323,6 +343,8 @@ class RiderConsumer(AsyncWebsocketConsumer):
             await self.handle_cancel_ride(data)
         elif msg_type == "get_status":
             await self.send_current_state()
+        elif msg_type == "ping":
+            await self.send(text_data=json.dumps({"type": "pong"}))
 
     async def send_current_state(self):
         state = await self.get_current_state()
@@ -341,7 +363,11 @@ class RiderConsumer(AsyncWebsocketConsumer):
             return
 
         reason = data.get("reason", "")
-        result = await self.try_rider_cancel(ride_id, reason)
+        try:
+            result = await self.try_rider_cancel(ride_id, reason)
+        except Exception:
+            logger.exception("Rider cancel failed ride=%s", ride_id)
+            result = {"success": False, "detail": "Something went wrong."}
 
         await self.send(text_data=json.dumps({
             "type": "cancel_ride_success" if result["success"] else "cancel_ride_failed",
@@ -409,5 +435,12 @@ class RiderConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             "type": "ride_cancelled",
             "ride_id": event["ride_id"],
-            "cancelled_by": event["cancelled_by"],
+            "cancelled_by": event.get("cancelled_by"),
+        }))
+
+    async def ride_expired(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "ride_expired",
+            "ride_id": event["ride_id"],
+            "detail": "No driver found. Please try again.",
         }))

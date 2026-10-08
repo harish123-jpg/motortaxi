@@ -8,6 +8,7 @@ urlpatterns = [
     path("recent-drops/", recent_drop_locations, name="recent-drops"),
     path("my-rides/", views.my_rides, name="my-rides"),
     path("driver-rides/", views.driver_rides, name="driver-rides"),
+    path("driver-requests/", views.driver_ride_requests, name="driver-ride-requests"),
     path("active/", views.active_ride, name="active-ride"),
     path("<int:ride_id>/", views.ride_detail, name="ride-detail"),
     path("<int:ride_id>/cancel/", views.cancel_ride, name="cancel-ride"),
