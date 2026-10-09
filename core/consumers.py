@@ -4,6 +4,7 @@ import logging
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.gis.geos import Point
+from django.utils import timezone
 
 from drivers.models import DriverProfile
 from rides.expiry import ensure_expiry_loop
@@ -28,6 +29,9 @@ class DriverConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
         ensure_expiry_loop()
+
+        profile = await self.get_profile()
+        await self.touch_session(profile)
 
         await self.send(text_data=json.dumps({
             "type": "connected",
@@ -109,6 +113,8 @@ class DriverConsumer(AsyncWebsocketConsumer):
         elif msg_type == "get_status":
             await self.send_current_state()
         elif msg_type == "ping":
+            profile = await self.get_profile()
+            await self.touch_session(profile)
             await self.send(text_data=json.dumps({"type": "pong"}))
 
     async def handle_start_trip(self, data):
@@ -232,6 +238,7 @@ class DriverConsumer(AsyncWebsocketConsumer):
         if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
             return
 
+        await self.touch_session(profile)
         progress = await self.save_location_and_get_progress(profile, lat, lng)
         await self.send(text_data=json.dumps({
             "type": "location_ack",
@@ -266,6 +273,13 @@ class DriverConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def has_driver_profile(self):
         return DriverProfile.objects.filter(user=self.user).exists()
+
+    @database_sync_to_async
+    def touch_session(self, profile):
+        from drivers.models import DriverSession
+        DriverSession.objects.filter(driver=profile, ended_at__isnull=True).update(
+            last_seen_at=timezone.now()
+        )
 
     @database_sync_to_async
     def get_current_state(self, profile):

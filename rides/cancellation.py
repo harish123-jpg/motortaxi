@@ -84,7 +84,9 @@ def _delete_searching_ride(ride_id, cancelled_by, rider_user=None):
     return ride
 
 
-def expire_stale_searching_rides(minutes=SEARCH_TIMEOUT_MINUTES):
+def expire_stale_searching_rides(minutes=None):
+    if minutes is None:
+        minutes = SEARCH_TIMEOUT_MINUTES
     cutoff = timezone.now() - timedelta(minutes=minutes)
     ride_ids = list(
         Ride.objects.filter(

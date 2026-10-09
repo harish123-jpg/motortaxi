@@ -1,7 +1,8 @@
 from django.contrib import admin
+from django.utils import timezone
 from modeltranslation.admin import TranslationAdmin
 
-from .models import DriverDocument, DriverProfile
+from .models import DriverDocument, DriverProfile, DriverSession
 
 
 class DriverDocumentInline(admin.TabularInline):
@@ -52,3 +53,16 @@ class DriverDocumentAdmin(TranslationAdmin):
     def reject_documents(self, request, queryset):
         updated = queryset.update(status=DriverDocument.Status.REJECTED)
         self.message_user(request, f"{updated} document(s) rejected.")
+
+
+@admin.register(DriverSession)
+class DriverSessionAdmin(admin.ModelAdmin):
+    list_display = ("id", "driver", "started_at", "ended_at", "last_seen_at")
+    list_filter = ("ended_at",)
+    search_fields = ("driver__user__full_name", "driver__user__phone_number")
+    actions = ["close_open_sessions"]
+
+    @admin.action(description="Close selected open sessions")
+    def close_open_sessions(self, request, queryset):
+        updated = queryset.filter(ended_at__isnull=True).update(ended_at=timezone.now())
+        self.message_user(request, f"{updated} session(s) closed.")

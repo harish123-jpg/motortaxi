@@ -8,7 +8,6 @@ from rides.models import Ride
 from .models import RiderProfile, User
 
 
-# ---------------- Inline: user ki rides (read-only) ----------------
 class RideInline(admin.TabularInline):
     model = Ride
     fk_name = "rider"
@@ -31,7 +30,6 @@ class RideInline(admin.TabularInline):
         return False
 
 
-# ---------------- User admin ----------------
 @admin.register(User)
 class UserAdmin(TranslationAdmin, BaseUserAdmin):
 
@@ -43,6 +41,7 @@ class UserAdmin(TranslationAdmin, BaseUserAdmin):
     search_fields = ("full_name", "phone_number", "email", "username")
     ordering = ("-date_joined",)
     list_per_page = 50
+    readonly_fields = ("last_login", "date_joined")
 
     inlines = [RideInline]
 
@@ -85,7 +84,6 @@ class UserAdmin(TranslationAdmin, BaseUserAdmin):
     )
 
 
-# ---------------- Rider profile admin ----------------
 @admin.register(RiderProfile)
 class RiderProfileAdmin(TranslationAdmin):
 
@@ -93,6 +91,7 @@ class RiderProfileAdmin(TranslationAdmin):
         "id", "user", "rating_avg", "total_rides", "created_at",
     )
     search_fields = ("user__full_name", "user__phone_number")
-    list_filter = ("rating_avg",)
+    list_filter = ("created_at",)
     ordering = ("-created_at",)
     readonly_fields = ("created_at", "updated_at")
+    list_select_related = ("user",)

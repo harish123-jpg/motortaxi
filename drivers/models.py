@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.gis.db import models as gis_models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from users.models import User
 
@@ -164,9 +165,13 @@ class DriverSession(models.Model):
     )
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
+    last_seen_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        indexes = [models.Index(fields=["driver", "started_at"])]
+        indexes = [
+            models.Index(fields=["driver", "started_at"]),
+            models.Index(fields=["ended_at", "last_seen_at"]),
+        ]
 
     def __str__(self):
         return f"Session: driver {self.driver_id} ({self.started_at} - {self.ended_at or 'ongoing'})"

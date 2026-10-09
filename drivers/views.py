@@ -1,3 +1,4 @@
+from django.contrib.gis.geos import Point
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -5,11 +6,10 @@ from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.gis.geos import Point
 
 from vehicles.models import VehicleDocument
 from vehicles.serializers import VehicleDocumentSerializer
-from .models import DriverDocument, DriverProfile, DriverWallet, DriverSession
+from .models import DriverDocument, DriverProfile, DriverSession, DriverWallet
 from .permissions import IsDriver
 from .serializers import (
     DriverDocumentSerializer,
@@ -90,9 +90,7 @@ class DriverDocumentListCreateView(generics.ListCreateAPIView):
     serializer_class = DriverDocumentSerializer
 
     def get_queryset(self):
-        return DriverDocument.objects.filter(
-            driver__user=self.request.user
-        )
+        return DriverDocument.objects.filter(driver__user=self.request.user)
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
@@ -106,7 +104,7 @@ class DriverDocumentListCreateView(generics.ListCreateAPIView):
             "vehicle_documents": VehicleDocumentSerializer(
                 vehicle_documents,
                 many=True,
-                context={"request": request}
+                context={"request": request},
             ).data,
         }
 
@@ -122,7 +120,6 @@ class DriverDocumentListCreateView(generics.ListCreateAPIView):
 
         try:
             serializer.save(driver=profile)
-
         except IntegrityError:
             raise generics.ValidationError(
                 {"detail": "A document of this type already exists for this driver. Use update instead."}
@@ -142,6 +139,12 @@ class GoOnlineView(APIView):
         profile = request.user.driver_profile
 
         if profile.status == DriverProfile.Status.ONLINE:
+            now = timezone.now()
+            touched = DriverSession.objects.filter(
+                driver=profile, ended_at__isnull=True
+            ).update(last_seen_at=now)
+            if not touched:
+                DriverSession.objects.create(driver=profile, last_seen_at=now)
             return Response(
                 {"detail": "Driver is already online.", "status": profile.status},
                 status=status.HTTP_200_OK,
@@ -157,9 +160,15 @@ class GoOnlineView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        profile.status = DriverProfile.Status.ONLINE
-        profile.save(update_fields=["status", "updated_at"])
-        DriverSession.objects.create(driver=profile)
+        now = timezone.now()
+        with transaction.atomic():
+            profile.status = DriverProfile.Status.ONLINE
+            profile.save(update_fields=["status", "updated_at"])
+            DriverSession.objects.filter(
+                driver=profile, ended_at__isnull=True
+            ).update(ended_at=now)
+            DriverSession.objects.create(driver=profile, last_seen_at=now)
+
         return Response(DriverProfileSerializer(profile).data)
 
 
@@ -176,6 +185,9 @@ class GoOfflineView(APIView):
         profile = request.user.driver_profile
 
         if profile.status == DriverProfile.Status.OFFLINE:
+            DriverSession.objects.filter(
+                driver=profile, ended_at__isnull=True
+            ).update(ended_at=timezone.now())
             return Response(
                 {"detail": "Driver is already offline.", "status": profile.status},
                 status=status.HTTP_200_OK,
@@ -187,17 +199,12 @@ class GoOfflineView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        profile.status = DriverProfile.Status.OFFLINE
-        profile.save(update_fields=["status", "updated_at"])
-
-        open_session = (
-            DriverSession.objects.filter(driver=profile, ended_at__isnull=True)
-            .order_by("-started_at")
-            .first()
-        )
-        if open_session:
-            open_session.ended_at = timezone.now()
-            open_session.save(update_fields=["ended_at"])
+        with transaction.atomic():
+            profile.status = DriverProfile.Status.OFFLINE
+            profile.save(update_fields=["status", "updated_at"])
+            DriverSession.objects.filter(
+                driver=profile, ended_at__isnull=True
+            ).update(ended_at=timezone.now())
 
         return Response(DriverProfileSerializer(profile).data)
 
@@ -240,12 +247,12 @@ class UpdateLocationView(APIView):
         profile.current_location = Point(lng, lat, srid=4326)
         profile.save(update_fields=["current_location", "updated_at"])
 
-        return Response(
-            {"detail": "Location updated.", "lat": lat, "lng": lng}
-        )
+        DriverSession.objects.filter(
+            driver=profile, ended_at__isnull=True
+        ).update(last_seen_at=timezone.now())
 
+        return Response({"detail": "Location updated.", "lat": lat, "lng": lng})
 
-# ---------------- WALLET ----------------
 
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
@@ -271,8 +278,6 @@ def wallet_summary(request):
     summary = get_earnings_summary(profile)
     return Response(summary)
 
-
-# ---------------- HOME STATS ----------------
 
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])

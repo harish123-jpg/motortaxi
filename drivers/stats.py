@@ -5,25 +5,43 @@ from django.utils import timezone
 
 from .models import DriverProfile, DriverSession
 
+SESSION_GRACE = timedelta(minutes=2)
+
+
+def _session_end(session, now):
+    if session.ended_at:
+        return session.ended_at
+    return min(now, session.last_seen_at + SESSION_GRACE)
+
 
 def _online_seconds(driver: DriverProfile, window_start, window_end):
-    """
-    Sums the time the driver's status was ONLINE/BUSY/ON_TRIP (i.e. the
-    session was open) during [window_start, window_end). A session that
-    started before the window, or is still open (ended_at=None), is
-    clipped to the window boundaries.
-    """
-    sessions = DriverSession.objects.filter(driver=driver, started_at__lt=window_end).filter(
+    sessions = DriverSession.objects.filter(
+        driver=driver, started_at__lt=window_end
+    ).filter(
         Q(ended_at__gt=window_start) | Q(ended_at__isnull=True)
     )
 
     now = timezone.now()
-    total = timedelta()
+    intervals = []
     for session in sessions:
         s_start = max(session.started_at, window_start)
-        s_end = min(session.ended_at or now, window_end)
+        s_end = min(_session_end(session, now), window_end)
         if s_end > s_start:
-            total += s_end - s_start
+            intervals.append((s_start, s_end))
+
+    intervals.sort()
+    total = timedelta()
+    cur_start = None
+    cur_end = None
+    for start, end in intervals:
+        if cur_end is None or start > cur_end:
+            if cur_end is not None:
+                total += cur_end - cur_start
+            cur_start, cur_end = start, end
+        else:
+            cur_end = max(cur_end, end)
+    if cur_end is not None:
+        total += cur_end - cur_start
 
     return total.total_seconds()
 
@@ -56,7 +74,9 @@ def _period_block(driver: DriverProfile, window_start, window_end):
 
 def get_driver_home_stats(driver: DriverProfile):
     now = timezone.now()
-    start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_of_today = timezone.localtime(now).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
     seven_days_ago = now - timedelta(days=7)
 
     first_session = DriverSession.objects.filter(driver=driver).order_by("started_at").first()
