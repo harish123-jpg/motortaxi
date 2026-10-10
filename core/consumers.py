@@ -9,10 +9,12 @@ from django.utils import timezone
 from drivers.models import DriverProfile
 from rides.expiry import ensure_expiry_loop
 
+from rides.payments import DemoPaymentDriverMixin, DemoPaymentRiderMixin
+
 logger = logging.getLogger(__name__)
 
 
-class DriverConsumer(AsyncWebsocketConsumer):
+class DriverConsumer(DemoPaymentDriverMixin, AsyncWebsocketConsumer):
     async def connect(self):
         self.user = self.scope["user"]
 
@@ -95,6 +97,11 @@ class DriverConsumer(AsyncWebsocketConsumer):
             return
 
         msg_type = data.get("type")
+
+        # DEMO PAYMENT: start (real payment aane par hata do)
+        if await self.demo_payment_receive(msg_type, data):
+            return
+        # DEMO PAYMENT: end
 
         if msg_type == "location_update":
             await self.handle_location_update(data)
@@ -322,7 +329,7 @@ class DriverConsumer(AsyncWebsocketConsumer):
         return start_trip(ride_id, profile, otp)
 
 
-class RiderConsumer(AsyncWebsocketConsumer):
+class RiderConsumer(DemoPaymentRiderMixin, AsyncWebsocketConsumer):
     async def connect(self):
         self.user = self.scope["user"]
 
@@ -352,6 +359,11 @@ class RiderConsumer(AsyncWebsocketConsumer):
             return
 
         msg_type = data.get("type")
+
+        # DEMO PAYMENT: start
+        if await self.demo_payment_receive(msg_type, data):
+            return
+        # DEMO PAYMENT: end
 
         if msg_type == "cancel_ride":
             await self.handle_cancel_ride(data)

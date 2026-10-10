@@ -118,6 +118,12 @@ class Ride(models.Model):
         verbose_name=_("payment status"),
     )
 
+    payment_details = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name=_("payment details"),
+    )
+
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
@@ -178,6 +184,7 @@ class Ride(models.Model):
         indexes = [
             models.Index(fields=["rider", "status"]),
             models.Index(fields=["status"]),
+            models.Index(fields=["status", "created_at"]),
         ]
 
     def __str__(self):
@@ -233,6 +240,7 @@ class RideOffer(models.Model):
 
     def __str__(self):
         return f"Offer: Ride #{self.ride_id} -> Driver {self.driver_id} ({self.status})"
+
 
 class Rating(models.Model):
     ride = models.OneToOneField(

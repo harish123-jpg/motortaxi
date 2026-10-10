@@ -76,12 +76,16 @@ def complete_trip(ride_id, driver_profile: DriverProfile):
                 id=ride_id, driver=driver_profile, status=Ride.Status.ONGOING
             )
         except Ride.DoesNotExist:
-            # Duplicate request: ride pehle hi complete ho chuki hai
             if Ride.objects.filter(
                 id=ride_id, driver=driver_profile, status=Ride.Status.COMPLETED
             ).exists():
                 return {"success": True, "detail": "Trip already completed."}
             return {"success": False, "detail": "Ride not found or not in ONGOING state."}
+
+        from .payments import demo_payment_block_reason
+        block_reason = demo_payment_block_reason(ride)
+        if block_reason:
+            return {"success": False, "detail": block_reason}
 
         ride.status = Ride.Status.COMPLETED
         ride.final_fare = ride.estimated_fare
