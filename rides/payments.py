@@ -60,10 +60,11 @@ def validate_demo_card(data):
 def demo_payment_block_reason(ride):
     """
     trip.complete_trip se call hota hai.
-    Non-cash ride mein payment nahi hui to complete roko.
+    CARD/UPI: paid nahi hua to complete roko.
+    CASH: rok nahi. MOBILE_MONEY (EzTransfer QR): rok nahi, trip complete hone ke baad QR se pay hota hai.
     """
     if (
-        ride.payment_method != Ride.PaymentMethod.CASH
+        ride.payment_method not in (Ride.PaymentMethod.CASH, Ride.PaymentMethod.MOBILE_MONEY)
         and ride.payment_status != Ride.PaymentStatus.PAID
     ):
         return "Rider has not paid yet."
@@ -102,7 +103,7 @@ def get_payment_info(ride_id, user):
         "can_complete": (
             ride.status == Ride.Status.ONGOING
             and (
-                ride.payment_method == Ride.PaymentMethod.CASH
+                ride.payment_method in (Ride.PaymentMethod.CASH, Ride.PaymentMethod.MOBILE_MONEY)
                 or ride.payment_status == Ride.PaymentStatus.PAID
             )
         ),
@@ -151,6 +152,17 @@ def pay_ride(ride_id, rider_user, method, data):
             "paid": False,
         }
 
+    if method == Ride.PaymentMethod.MOBILE_MONEY:
+        Ride.objects.filter(id=ride.id).update(
+            payment_method=method,
+            payment_details={},
+        )
+        return {
+            "success": True,
+            "detail": "EzTransfer selected. Scan the driver's QR after the trip.",
+            "paid": False,
+        }
+
     if method == Ride.PaymentMethod.CARD:
         error = validate_demo_card(data)
         if error:
@@ -165,16 +177,6 @@ def pay_ride(ride_id, rider_user, method, data):
                 "paid": False,
             }
         details = {"scanned": True}
-
-    elif method == Ride.PaymentMethod.MOBILE_MONEY:
-        rider_number = str(data.get("rider_number", "")).strip()
-        if not rider_number:
-            return {"success": False, "detail": "rider_number is required.", "paid": False}
-        details = {
-            "rider_number": rider_number,
-            "amount": str(data.get("amount") or ride.estimated_fare),
-            "driver_number": ride.driver.user.phone_number,
-        }
 
     details["paid_at"] = timezone.now().isoformat()
 

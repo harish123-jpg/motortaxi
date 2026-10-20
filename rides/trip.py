@@ -6,6 +6,7 @@ from django.db import transaction
 
 from drivers.models import DriverProfile
 from drivers.wallet import credit_ride_earning
+from drivers.ez_qr import get_pending_payment, send_fare_qr
 from .fare_estimate import CURRENCY
 from .models import Ride, RideOffer
 
@@ -87,9 +88,15 @@ def complete_trip(ride_id, driver_profile: DriverProfile):
         if block_reason:
             return {"success": False, "detail": block_reason}
 
+        # MOBILE_MONEY = EzTransfer QR: complete ke baad PENDING, webhook se PAID hogi.
+        # CASH / CARD / UPI: pehle jaisa, PAID.
+        is_qr = ride.payment_method == Ride.PaymentMethod.MOBILE_MONEY
+
         ride.status = Ride.Status.COMPLETED
         ride.final_fare = ride.estimated_fare
-        ride.payment_status = Ride.PaymentStatus.PAID
+        ride.payment_status = (
+            Ride.PaymentStatus.PENDING if is_qr else Ride.PaymentStatus.PAID
+        )
         ride.completed_at = timezone.now()
         ride.save(update_fields=["status", "final_fare", "payment_status", "completed_at", "updated_at"])
 
@@ -103,15 +110,14 @@ def complete_trip(ride_id, driver_profile: DriverProfile):
         "final_fare": float(ride.final_fare),
         "payment_status": ride.payment_status,
     })
+
+    if is_qr:
+        send_fare_qr(Ride.objects.select_related("driver__user").get(id=ride.id))
+
     return {"success": True, "detail": "Trip completed.", "ride": ride}
 
+
 def get_trip_progress(driver_profile: DriverProfile, lat: float, lng: float):
-    """
-    Given the driver's just-reported lat/lng, works out which active
-    ride they're on (if any), which point they're heading to (pickup
-    while ACCEPTED, drop while ONGOING), and how far/how long that is.
-    Returns None if the driver has no active ride right now.
-    """
     ride = Ride.objects.filter(
         driver=driver_profile,
         status__in=ACTIVE_RIDE_STATUSES,
@@ -137,7 +143,6 @@ def get_trip_progress(driver_profile: DriverProfile, lat: float, lng: float):
 
 
 def get_current_status_info(driver_profile: DriverProfile):
-    """Purana lightweight helper (ab get_driver_current_state use hota hai)."""
     ride = Ride.objects.filter(
         driver=driver_profile,
         status__in=ACTIVE_RIDE_STATUSES,
@@ -250,14 +255,6 @@ def _rider_block(user):
 
 
 def get_rider_current_state(user):
-    """
-    stage:
-      none               -> koi active ride nahi
-      searching          -> driver dhoondh rahe hain
-      driver_on_the_way  -> driver assign, pickup ki taraf aa raha hai
-      driver_arrived     -> driver pickup pe pahunch gaya (arrived_at field chahiye)
-      trip_ongoing       -> trip chal rahi hai, drop ki taraf
-    """
     ride = (
         Ride.objects.filter(rider=user, status__in=ACTIVE_RIDER_STATUSES)
         .select_related("rider", "driver__user")
@@ -362,16 +359,6 @@ def get_rider_current_state(user):
 # =====================================================================
 
 def get_driver_current_state(driver_profile: DriverProfile):
-    """
-    stage:
-      offline            -> driver online nahi hai
-      online_idle        -> online hai, koi ride nahi (pending_offers dekho)
-      driver_on_the_way  -> ride accept ki, pickup ki taraf ja raha hai
-      driver_arrived     -> pickup pe pahunch gaya (arrived_at field chahiye)
-      trip_ongoing       -> trip chal rahi hai, drop ki taraf
-
-    NOTE: driver ko OTP nahi bheja jata (rider driver ko batata hai).
-    """
     driver_profile = DriverProfile.objects.select_related("user").get(pk=driver_profile.pk)
 
     loc = driver_profile.current_location
@@ -413,6 +400,7 @@ def get_driver_current_state(driver_profile: DriverProfile):
             "rider": None,
             "progress": None,
             "pending_offers": pending_offers,
+            "pending_payment": get_pending_payment(driver_profile),
             "flags": {
                 "has_active_ride": False,
                 "has_pending_offers": len(pending_offers) > 0,
@@ -464,6 +452,7 @@ def get_driver_current_state(driver_profile: DriverProfile):
         "rider": _rider_block(ride.rider),
         "progress": _progress_block(ride, d_lat, d_lng),
         "pending_offers": [],
+        "pending_payment": get_pending_payment(driver_profile),
         "flags": {
             "has_active_ride": True,
             "has_pending_offers": False,
@@ -476,7 +465,6 @@ def get_driver_current_state(driver_profile: DriverProfile):
 
 
 def _pending_offers(driver_profile, d_lat, d_lng):
-    """Jo ride requests driver ko bheji gayi thi aur abhi tak open hain."""
     offers = (
         RideOffer.objects.filter(
             driver=driver_profile,

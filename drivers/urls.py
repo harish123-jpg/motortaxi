@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .internal_views import RidePaidWebhookView
 from .views import *
 
 urlpatterns = [
@@ -12,5 +13,5 @@ urlpatterns = [
     path("wallet/transactions/", wallet_transactions, name="wallet-transactions"),
     path("wallet/summary/", wallet_summary, name="wallet-summary"),
     path("stats/home/", driver_home_stats, name="driver-home-stats"),
-
+    path("internal/ride-paid/", RidePaidWebhookView.as_view()),
 ]

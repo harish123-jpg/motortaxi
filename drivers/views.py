@@ -1,3 +1,4 @@
+from rest_framework.views import APIView
 from django.contrib.gis.geos import Point
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
@@ -5,8 +6,6 @@ from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.views import APIView
-
 from vehicles.models import VehicleDocument
 from vehicles.serializers import VehicleDocumentSerializer
 from .models import DriverDocument, DriverProfile, DriverSession, DriverWallet

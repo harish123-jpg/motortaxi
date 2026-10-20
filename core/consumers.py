@@ -7,6 +7,7 @@ from django.contrib.gis.geos import Point
 from django.utils import timezone
 
 from drivers.models import DriverProfile
+from drivers.ez_qr import resend_fare_qr
 from rides.expiry import ensure_expiry_loop
 
 from rides.payments import DemoPaymentDriverMixin, DemoPaymentRiderMixin
@@ -90,6 +91,15 @@ class DriverConsumer(DemoPaymentDriverMixin, AsyncWebsocketConsumer):
             "ride_id": event["ride_id"],
         }))
 
+    # ---------- EzTransfer QR events ----------
+    async def payment_qr(self, event):
+        await self.send(text_data=json.dumps(event))
+
+    async def payment_qr_failed(self, event):
+        await self.send(text_data=json.dumps(event))
+
+    # payment_received DemoPaymentDriverMixin mein already hai
+
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
@@ -98,10 +108,8 @@ class DriverConsumer(DemoPaymentDriverMixin, AsyncWebsocketConsumer):
 
         msg_type = data.get("type")
 
-        # DEMO PAYMENT: start (real payment aane par hata do)
         if await self.demo_payment_receive(msg_type, data):
             return
-        # DEMO PAYMENT: end
 
         if msg_type == "location_update":
             await self.handle_location_update(data)
@@ -117,12 +125,29 @@ class DriverConsumer(DemoPaymentDriverMixin, AsyncWebsocketConsumer):
             await self.handle_trip_action(data, "complete_trip")
         elif msg_type == "cancel_ride":
             await self.handle_cancel_ride(data)
+        elif msg_type == "get_payment_qr":
+            await self.handle_get_payment_qr(data)
         elif msg_type == "get_status":
             await self.send_current_state()
         elif msg_type == "ping":
             profile = await self.get_profile()
             await self.touch_session(profile)
             await self.send(text_data=json.dumps({"type": "pong"}))
+
+    async def handle_get_payment_qr(self, data):
+        ride_id = data.get("ride_id")
+        if ride_id is None:
+            await self.send(text_data=json.dumps({
+                "type": "error",
+                "detail": "ride_id is required."
+            }))
+            return
+        profile = await self.get_profile()
+        await self.run_resend_qr(ride_id, profile)
+
+    @database_sync_to_async
+    def run_resend_qr(self, ride_id, profile):
+        return resend_fare_qr(ride_id, profile)
 
     async def handle_start_trip(self, data):
         ride_id = data.get("ride_id")
@@ -360,10 +385,8 @@ class RiderConsumer(DemoPaymentRiderMixin, AsyncWebsocketConsumer):
 
         msg_type = data.get("type")
 
-        # DEMO PAYMENT: start
         if await self.demo_payment_receive(msg_type, data):
             return
-        # DEMO PAYMENT: end
 
         if msg_type == "cancel_ride":
             await self.handle_cancel_ride(data)
@@ -410,6 +433,10 @@ class RiderConsumer(DemoPaymentRiderMixin, AsyncWebsocketConsumer):
     def get_current_state(self):
         from rides.trip import get_rider_current_state
         return get_rider_current_state(self.user)
+
+    # EzTransfer payment ho gayi (webhook se)
+    async def payment_received(self, event):
+        await self.send(text_data=json.dumps(event))
 
     async def driver_location(self, event):
         await self.send(text_data=json.dumps({
