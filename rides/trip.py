@@ -6,7 +6,7 @@ from django.db import transaction
 
 from drivers.models import DriverProfile
 from drivers.wallet import credit_ride_earning
-from drivers.ez_qr import get_pending_payment, send_fare_qr
+from drivers.ez_qr import get_pending_payment, send_fare_qr, cancel_fare_qr
 from .fare_estimate import CURRENCY
 from .models import Ride, RideOffer
 
@@ -67,8 +67,13 @@ def start_trip(ride_id, driver_profile: DriverProfile, otp: str):
     driver_profile.save(update_fields=["status", "updated_at"])
 
     _notify_rider(ride, "trip_started", {})
-    return {"success": True, "detail": "Trip started.", "ride": ride}
 
+    try:
+        send_fare_qr(Ride.objects.select_related("driver__user").get(id=ride.id))
+    except Exception:
+        pass
+
+    return {"success": True, "detail": "Trip started.", "ride": ride}
 
 def complete_trip(ride_id, driver_profile: DriverProfile):
     with transaction.atomic():
@@ -88,15 +93,9 @@ def complete_trip(ride_id, driver_profile: DriverProfile):
         if block_reason:
             return {"success": False, "detail": block_reason}
 
-        # MOBILE_MONEY = EzTransfer QR: complete ke baad PENDING, webhook se PAID hogi.
-        # CASH / CARD / UPI: pehle jaisa, PAID.
-        is_qr = ride.payment_method == Ride.PaymentMethod.MOBILE_MONEY
-
         ride.status = Ride.Status.COMPLETED
         ride.final_fare = ride.estimated_fare
-        ride.payment_status = (
-            Ride.PaymentStatus.PENDING if is_qr else Ride.PaymentStatus.PAID
-        )
+        ride.payment_status = Ride.PaymentStatus.PAID
         ride.completed_at = timezone.now()
         ride.save(update_fields=["status", "final_fare", "payment_status", "completed_at", "updated_at"])
 
@@ -111,11 +110,12 @@ def complete_trip(ride_id, driver_profile: DriverProfile):
         "payment_status": ride.payment_status,
     })
 
-    if is_qr:
-        send_fare_qr(Ride.objects.select_related("driver__user").get(id=ride.id))
+    try:
+        cancel_fare_qr(ride)
+    except Exception:
+        pass
 
     return {"success": True, "detail": "Trip completed.", "ride": ride}
-
 
 def get_trip_progress(driver_profile: DriverProfile, lat: float, lng: float):
     ride = Ride.objects.filter(
@@ -171,10 +171,6 @@ def _notify_rider(ride: Ride, event_type: str, extra: dict):
     async_to_sync(channel_layer.group_send)(f"rider_{ride.rider_id}", payload)
 
 
-# =====================================================================
-# COMMON HELPERS
-# =====================================================================
-
 def _num(value):
     return float(value) if value is not None else None
 
@@ -184,7 +180,6 @@ def _iso(dt):
 
 
 def _attr(obj, name, default=None):
-    """Optional field safely padho (agar tumhare model mein na ho toh None)."""
     return getattr(obj, name, default) if obj is not None else default
 
 
@@ -209,7 +204,6 @@ def _vehicle_block(driver):
 
 
 def _progress_block(ride, d_lat, d_lng):
-    """Driver ki location se pickup/drop tak distance + ETA."""
     pickup_lat, pickup_lon = float(ride.pickup_lat), float(ride.pickup_lon)
     drop_lat, drop_lon = float(ride.drop_lat), float(ride.drop_lon)
 
@@ -220,7 +214,7 @@ def _progress_block(ride, d_lat, d_lng):
 
     if ride.status == Ride.Status.ACCEPTED:
         target, distance_remaining = "pickup", driver_to_pickup
-    else:  # ONGOING
+    else:
         target, distance_remaining = "drop", driver_to_drop
 
     return {
@@ -241,10 +235,6 @@ def _stage_for_active_ride(ride):
         return "trip_ongoing"
     return "driver_arrived" if arrived_at else "driver_on_the_way"
 
-
-# =====================================================================
-# RIDER CURRENT STATE
-# =====================================================================
 
 def _rider_block(user):
     return {
@@ -354,10 +344,6 @@ def get_rider_current_state(user):
     }
 
 
-# =====================================================================
-# DRIVER CURRENT STATE
-# =====================================================================
-
 def get_driver_current_state(driver_profile: DriverProfile):
     driver_profile = DriverProfile.objects.select_related("user").get(pk=driver_profile.pk)
 
@@ -387,7 +373,6 @@ def get_driver_current_state(driver_profile: DriverProfile):
         .first()
     )
 
-    # ---------- Active ride nahi hai ----------
     if not ride:
         pending_offers = _pending_offers(driver_profile, d_lat, d_lng)
         online = driver_profile.status == DriverProfile.Status.ONLINE
@@ -411,7 +396,6 @@ def get_driver_current_state(driver_profile: DriverProfile):
             },
         }
 
-    # ---------- Active ride hai ----------
     stage = _stage_for_active_ride(ride)
     arrived_at = _attr(ride, "arrived_at")
 

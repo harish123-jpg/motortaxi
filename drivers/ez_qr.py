@@ -1,5 +1,4 @@
 import logging
-from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 import requests
@@ -13,8 +12,6 @@ from rides.fare_estimate import CURRENCY
 from rides.models import Ride
 
 logger = logging.getLogger(__name__)
-
-PENDING_WINDOW = timedelta(hours=6)
 
 
 def ride_ref(ride_id):
@@ -60,7 +57,7 @@ def _notify_paid(ride_id):
     event = {
         "type": "payment_received",
         "ride_id": ride.id,
-        "amount": float(ride.final_fare),
+        "amount": float(ride.final_fare or ride.estimated_fare),
         "currency": CURRENCY,
         "method": "EZTRANSFER",
     }
@@ -76,13 +73,14 @@ def mark_ride_paid(ride_id, amount, transaction_id=None, invoice_no=None):
             return "not_found"
         if ride.payment_status == Ride.PaymentStatus.PAID:
             return "already"
-        if ride.status != Ride.Status.COMPLETED or ride.final_fare is None:
+        if ride.status not in (Ride.Status.ONGOING, Ride.Status.COMPLETED):
             return "invalid_state"
+        expected = ride.final_fare or ride.estimated_fare
         try:
             paid = Decimal(str(amount)).quantize(Decimal("0.01"))
         except (InvalidOperation, TypeError):
             return "invalid_amount"
-        if paid != ride.final_fare.quantize(Decimal("0.01")):
+        if paid != Decimal(str(expected)).quantize(Decimal("0.01")):
             return "amount_mismatch"
 
         details = dict(ride.payment_details or {})
@@ -114,7 +112,7 @@ def get_fare_qr(ride):
     user = ride.driver.user
     if not user.is_phone_verified:
         return None, "Verify your phone number to receive payments."
-    amount = Decimal(ride.final_fare or ride.estimated_fare)
+    amount = Decimal(str(ride.final_fare or ride.estimated_fare))
     status, body = _post(
         "/qr/internal/fare-qr/",
         {
@@ -149,18 +147,31 @@ def send_fare_qr(ride):
     if error:
         _group_send(group, {"type": "payment_qr_failed", "ride_id": ride.id, "detail": error})
     elif not data.get("paid"):
-        _group_send(group, {"type": "payment_qr", "ride_id": ride.id, "currency": CURRENCY, **data})
+        _group_send(group, {
+            "type": "payment_qr",
+            "ride_id": ride.id,
+            "currency": CURRENCY,
+            "pickup_address": ride.pickup_address,
+            "drop_address": ride.drop_address,
+            **data,
+        })
+
+
+def cancel_fare_qr(ride):
+    if (ride.payment_details or {}).get("provider") == "eztransfer":
+        return
+    status, body = _post("/qr/internal/fare-cancel/", {"ref": ride_ref(ride.id)}, 4)
+    if status == 200 and body.get("paid"):
+        logger.warning("ride %s: QR paid at the same time as completion", ride.id)
 
 
 def resend_fare_qr(ride_id, driver_profile):
     ride = (
         Ride.objects.select_related("driver__user")
-        .filter(id=ride_id, driver=driver_profile, status=Ride.Status.COMPLETED)
+        .filter(id=ride_id, driver=driver_profile, status=Ride.Status.ONGOING)
         .first()
     )
     if ride is None or ride.payment_status != Ride.PaymentStatus.PENDING:
-        return
-    if ride.payment_method != Ride.PaymentMethod.MOBILE_MONEY:
         return
     if check_ride_paid(ride) == "paid":
         return
@@ -171,18 +182,16 @@ def get_pending_payment(driver_profile):
     ride = (
         Ride.objects.filter(
             driver=driver_profile,
-            status=Ride.Status.COMPLETED,
+            status=Ride.Status.ONGOING,
             payment_status=Ride.PaymentStatus.PENDING,
-            payment_method=Ride.PaymentMethod.MOBILE_MONEY,
-            completed_at__gte=timezone.now() - PENDING_WINDOW,
         )
-        .order_by("-completed_at")
+        .order_by("-started_at")
         .first()
     )
     if not ride:
         return None
     return {
         "ride_id": ride.id,
-        "amount": float(ride.final_fare),
+        "amount": float(ride.estimated_fare),
         "currency": CURRENCY,
     }

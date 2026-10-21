@@ -20,9 +20,6 @@ DEMO_CARD = {
 }
 
 
-# ---------------------------------------------------------------------
-# DEMO PAYMENT: core logic (sync, DB wala)
-# ---------------------------------------------------------------------
 def make_qr_payload(ride):
     return signing.dumps(
         {"ride_id": ride.id, "driver_id": ride.driver_id},
@@ -58,11 +55,6 @@ def validate_demo_card(data):
 
 
 def demo_payment_block_reason(ride):
-    """
-    trip.complete_trip se call hota hai.
-    CARD/UPI: paid nahi hua to complete roko.
-    CASH: rok nahi. MOBILE_MONEY (EzTransfer QR): rok nahi, trip complete hone ke baad QR se pay hota hai.
-    """
     if (
         ride.payment_method not in (Ride.PaymentMethod.CASH, Ride.PaymentMethod.MOBILE_MONEY)
         and ride.payment_status != Ride.PaymentStatus.PAID
@@ -84,9 +76,18 @@ def get_payment_info(ride_id, user):
     if ride.driver_id is None:
         return {"success": False, "detail": "Driver not assigned yet."}
 
+    if (
+        ride.status in (Ride.Status.ONGOING, Ride.Status.COMPLETED)
+        and ride.payment_status == Ride.PaymentStatus.PENDING
+        and ride.payment_method == Ride.PaymentMethod.MOBILE_MONEY
+    ):
+        from drivers.ez_qr import check_ride_paid
+        check_ride_paid(ride)
+        ride.refresh_from_db(fields=["payment_status", "payment_method"])
+
     data = {
         "ride_id": ride.id,
-        "amount": float(ride.estimated_fare),
+        "amount": float(ride.final_fare or ride.estimated_fare),
         "currency": CURRENCY,
         "ride_status": ride.status,
         "payment_method": ride.payment_method,
@@ -157,9 +158,12 @@ def pay_ride(ride_id, rider_user, method, data):
             payment_method=method,
             payment_details={},
         )
+        ride.payment_method = method
+        from drivers.ez_qr import send_fare_qr
+        send_fare_qr(ride)
         return {
             "success": True,
-            "detail": "EzTransfer selected. Scan the driver's QR after the trip.",
+            "detail": "EzTransfer selected. Scan the driver's QR to pay.",
             "paid": False,
         }
 
@@ -213,9 +217,6 @@ def pay_ride(ride_id, rider_user, method, data):
     return {"success": True, "detail": "Payment successful.", "paid": True}
 
 
-# ---------------------------------------------------------------------
-# DEMO PAYMENT: WebSocket mixins (consumers inhe inherit karte hain)
-# ---------------------------------------------------------------------
 class _DemoPaymentCommonMixin:
     async def _demo_send(self, payload):
         await self.send(text_data=json.dumps(payload))
@@ -296,5 +297,6 @@ class DemoPaymentDriverMixin(_DemoPaymentCommonMixin):
             "ride_id": event["ride_id"],
             "method": event["method"],
             "amount": event["amount"],
+            "currency": event.get("currency"),
             "rider_number": event.get("rider_number"),
         })
