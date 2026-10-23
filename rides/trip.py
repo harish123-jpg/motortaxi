@@ -46,6 +46,7 @@ def mark_arrived(ride_id, driver_profile: DriverProfile):
     ride.arrived_at = timezone.now()
     ride.save(update_fields=["arrived_at", "updated_at"])
 
+
     _notify_rider(ride, "driver_arrived", {})
     return {"success": True, "detail": "Marked as arrived."}
 

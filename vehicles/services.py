@@ -1,31 +1,15 @@
-"""
-Fare Estimate Service
------------------------
-Given pickup + drop lat/lon, calculates for each ACTIVE vehicle type
-(read from the VehiclePricing table -- not hardcoded, since rates
-change over time and are edited via Django Admin):
-
-1. Distance (Haversine formula -- straight-line, no external API needed)
-2. Duration estimate (rough, based on assumed average speed)
-3. Fare the CUSTOMER pays (with night multiplier applied if applicable)
-4. Platform commission (app's cut)
-5. Driver payout (what the driver actually earns)
-
-NOTE: Straight-line distance is an MVP/demo simplification, not actual
-road distance. Swap in a routing API later (OSRM/Google Directions) by
-editing _haversine_distance's caller, not the pricing logic.
-"""
-
 import math
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from vehicles.models import VehiclePricing
 
-CURRENCY = "USD"
+CURRENCY = "XAF"
+CURRENCY_SYMBOL = "FCFA"
+LOCAL_TIMEZONE = ZoneInfo("Africa/Douala")
 EARTH_RADIUS_KM = 6371.0
-
-# Very rough average speed assumption, used only to estimate duration.
 ASSUMED_AVG_SPEED_KMPH = 25
+ROUNDING_STEP = 1
 
 
 class FareEstimateService:
@@ -43,7 +27,7 @@ class FareEstimateService:
         )
         duration_min = FareEstimateService._estimate_duration(distance_km)
 
-        current_hour = datetime.now().hour
+        current_hour = datetime.now(LOCAL_TIMEZONE).hour
         fares = []
 
         for pricing in VehiclePricing.objects.filter(is_active=True):
@@ -55,6 +39,7 @@ class FareEstimateService:
             "distance_km": distance_km,
             "duration_min": duration_min,
             "currency": CURRENCY,
+            "currency_symbol": CURRENCY_SYMBOL,
             "fares": fares,
         }
 
@@ -67,17 +52,25 @@ class FareEstimateService:
         if is_night:
             customer_fare *= float(pricing.night_multiplier)
 
+        # XAF has no decimals: round to whole francs (or to ROUNDING_STEP)
+        customer_fare = FareEstimateService._round_xaf(customer_fare)
+
         commission_percent = float(pricing.platform_commission_percent)
-        platform_commission = customer_fare * (commission_percent / 100)
-        driver_payout = customer_fare - platform_commission
+        platform_commission = int(round(customer_fare * commission_percent / 100))
+        driver_payout = customer_fare - platform_commission  # always adds up exactly
 
         return {
             "vehicle_type": pricing.vehicle_type,
-            "customer_fare": round(customer_fare, 2),
-            "platform_commission": round(platform_commission, 2),
-            "driver_payout": round(driver_payout, 2),
+            "customer_fare": customer_fare,
+            "platform_commission": platform_commission,
+            "driver_payout": driver_payout,
             "night_pricing_applied": is_night,
         }
+
+    @staticmethod
+    def _round_xaf(amount: float) -> int:
+        """Round to a whole number of francs, or to the nearest ROUNDING_STEP."""
+        return int(round(amount / ROUNDING_STEP) * ROUNDING_STEP)
 
     @staticmethod
     def _is_night_time(pricing: VehiclePricing, current_hour: int) -> bool:

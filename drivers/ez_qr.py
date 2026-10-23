@@ -59,7 +59,7 @@ def _notify_paid(ride_id):
         "ride_id": ride.id,
         "amount": float(ride.final_fare or ride.estimated_fare),
         "currency": CURRENCY,
-        "method": "EZTRANSFER",
+        "method": "Digital Payment Wallet",
     }
     if ride.driver_id:
         _group_send(f"driver_{ride.driver.user_id}", event)
@@ -131,10 +131,12 @@ def get_fare_qr(ride):
         mark_ride_paid(ride.id, body.get("amount"), body.get("transaction_id"), body.get("invoice_no"))
         return {"paid": True}, None
     if status == 404:
-        return None, "No EzTransfer account found for your phone number."
+        return None, "No Digital Payment Wallet account found for your phone number."
     if status == 409:
-        return None, "Your EzTransfer wallet is not available."
-    return None, body.get("detail") or "Could not create the payment QR."
+        return None, "Your Digital Payment Wallet is not available."
+    if body.get("detail"):
+        logger.warning("fare qr error ride=%s status=%s detail=%s", ride.id, status, body["detail"])
+    return None, "Could not create the payment QR."
 
 
 def send_fare_qr(ride):

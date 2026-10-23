@@ -163,7 +163,7 @@ def pay_ride(ride_id, rider_user, method, data):
         send_fare_qr(ride)
         return {
             "success": True,
-            "detail": "EzTransfer selected. Scan the driver's QR to pay.",
+            "detail": "Digital Payment Wallet selected. Scan the driver's QR to pay.",
             "paid": False,
         }
 
