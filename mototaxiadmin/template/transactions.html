@@ -1,3 +1,5 @@
+
+{% load static %}
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
@@ -7,10 +9,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
-  <div class="demo-banner"><span>● DEMO DATA — Static admin template. No backend connected. All figures are illustrative.</span></div>
+  <div class="demo-banner">
+    <span>● LIVE DATABASE — Wallet transactions from Django.</span>
+  </div>
 
   <div class="app" id="app">
     <aside class="sidebar" id="sidebar"></aside>
@@ -18,69 +22,81 @@
     <header class="topbar" id="topbar"></header>
 
     <main class="main">
-      <!-- Breadcrumb -->
       <div class="breadcrumb">
-        <a href="dashboard.html">Home</a>
+        <a href="{% url 'mototaxiadmin:dashboard' %}">Home</a>
         <span class="sep">/</span>
         <span class="current">Transactions</span>
       </div>
 
-      <!-- Page head -->
       <div class="page-head">
         <div>
           <h1 class="title">Transactions</h1>
-          <p class="desc">Monitor every FCFA movement on the platform — ride payments, driver payouts, wallet topups and refunds.</p>
+          <p class="desc">
+            Monitor wallet credits, debits, driver earnings, adjustments and withdrawals.
+          </p>
         </div>
         <div class="actions">
           <button class="btn" id="btnExport">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>
+            </svg>
             Export CSV
           </button>
           <button class="btn btn-primary" id="btnPdf">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l5 5v13H6z"/><path d="M15 3v5h5"/><path d="M9 14h6M9 17h6"/></svg>
-            PDF Receipt
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 3h9l5 5v13H6z"/><path d="M15 3v5h5M9 14h6M9 17h6"/>
+            </svg>
+            Print Receipt
           </button>
         </div>
       </div>
 
-      <!-- Top stats -->
       <div class="stat-grid" id="statGrid"></div>
 
-      <!-- Toolbar / filters -->
       <div class="toolbar" id="toolbar">
         <div class="search">
           <span class="ic">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <circle cx="11" cy="11" r="7"/>
+              <path d="M21 21l-4.5-4.5"/>
+            </svg>
           </span>
-          <input type="search" id="searchTxn" placeholder="Search TXN ID / Invoice / sender / receiver…">
+          <input type="search" id="searchTxn"
+                 placeholder="Search TXN ID, wallet ID, driver or license…">
         </div>
-        <select class="select" id="filterType" aria-label="Transaction Type">
-          <option value="">All Types</option>
-          <option value="Ride Payment">Ride Payment</option>
-          <option value="Driver Payout">Driver Payout</option>
-          <option value="Wallet Topup">Wallet Topup</option>
-          <option value="Ride Refund">Ride Refund</option>
+
+        <select class="select" id="filterType" aria-label="Transaction Reason">
+          <option value="">All Transaction Types</option>
+          <option value="RIDE_EARNING">Ride Earning</option>
+          <option value="ADJUSTMENT">Manual Adjustment</option>
+          <option value="WITHDRAWAL">Withdrawal</option>
         </select>
-        <select class="select" id="filterStatus" aria-label="Payment Status">
+
+        <select class="select" id="filterStatus" aria-label="Transaction Status">
           <option value="">All Status</option>
-          <option value="Successful">Successful</option>
-          <option value="Pending">Pending</option>
-          <option value="Failed">Failed</option>
+          <option value="Recorded">Recorded</option>
         </select>
+
         <select class="select" id="filterDir" aria-label="Direction">
           <option value="">All Directions</option>
-          <option value="Sent">Sent</option>
-          <option value="Received">Received</option>
+          <option value="Received">Received (Credit)</option>
+          <option value="Sent">Sent (Debit)</option>
         </select>
-        <input type="date" class="select" id="filterFrom" aria-label="Date from" title="From date">
-        <input type="date" class="select" id="filterTo" aria-label="Date to" title="To date">
+
+        <input type="date" class="select" id="filterFrom"
+               aria-label="Date from" title="From date">
+        <input type="date" class="select" id="filterTo"
+               aria-label="Date to" title="To date">
+
         <button class="btn btn-soft" id="btnReset">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 4v4h-4"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12a9 9 0 1 1-3-6.7L21 8"/>
+            <path d="M21 4v4h-4"/>
+          </svg>
           Reset
         </button>
       </div>
 
-      <!-- Transactions table -->
       <div class="table-wrap">
         <div class="table-scroll">
           <table class="tbl" id="txnsTable">
@@ -110,10 +126,20 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="js/demo-data.js"></script>
-  <script src="js/i18n.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/transactions.js"></script>
+  <script src="{% static 'js/demo-data.js' %}"></script>
+
+  {{ transactions_json|json_script:"transactions-data" }}
+
+  <script>
+    window.MOTOTAXI_DATA = window.MOTOTAXI_DATA || {};
+    window.MOTOTAXI_DATA.TRANSACTIONS = JSON.parse(
+      document.getElementById("transactions-data").textContent
+    );
+  </script>
+
+  <script src="{% static 'js/i18n.js' %}"></script>
+  <script src="{% static 'js/app.js' %}"></script>
+  <script src="{% static 'js/ui.js' %}"></script>
+  <script src="{% static 'js/transactions.js' %}"></script>
 </body>
 </html>

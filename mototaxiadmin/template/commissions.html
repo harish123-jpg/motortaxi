@@ -1,92 +1,101 @@
+
+{% load static %}
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MOTOTAXI Admin — Commissions</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
-  <div class="demo-banner"><span>● DEMO DATA — Static admin template. No backend connected. All figures are illustrative.</span></div>
-
   <div class="app" id="app">
     <aside class="sidebar" id="sidebar"></aside>
     <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
     <header class="topbar" id="topbar"></header>
 
     <main class="main">
-      <!-- Breadcrumb -->
       <div class="breadcrumb">
-        <a href="dashboard.html">Home</a>
+        <a href="{% url 'mototaxiadmin:dashboard' %}">Home</a>
         <span class="sep">/</span>
         <span class="current">Commissions</span>
       </div>
 
-      <!-- Page head -->
       <div class="page-head">
         <div>
           <h1 class="title">Commission Management</h1>
-          <p class="desc">Track agent commissions, platform earnings, transfer fees and pending settlements.</p>
+          <p class="desc">
+            Review driver commission totals and the platform's configured
+            vehicle pricing rules.
+          </p>
         </div>
         <div class="actions">
-          <button class="btn" id="btnExport">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+          <button class="btn" id="btnExport" type="button">
             Export CSV
           </button>
-          <button class="btn btn-primary" id="btnSettleAll">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4 10-10"/></svg>
-            Settle Pending
-          </button>
-          <button class="btn btn-soft" id="btnHistory">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4M12 8v4l3 2"/></svg>
-            View Commission History
+          <button class="btn btn-soft" id="btnHistory" type="button">
+            Commission Information
           </button>
         </div>
       </div>
 
-      <!-- Summary cards -->
+      <div class="text-muted" style="margin-bottom:16px;font-size:12px">
+        Commission totals use the existing backend calculation.
+        Pending settlements and settlement history are not tracked in the
+        current database schema.
+      </div>
+
       <div class="stat-grid" id="statGrid"></div>
 
-      <!-- Toolbar -->
       <div class="toolbar" id="toolbar">
         <div class="search">
           <span class="ic">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" width="16" height="16">
+              <circle cx="11" cy="11" r="7"/>
+              <path d="M21 21l-4.5-4.5"/>
+            </svg>
           </span>
-          <input type="search" id="searchAgents" placeholder="Search Agent ID / name / phone / city…">
+          <input type="search" id="searchAgents"
+                 placeholder="Search driver ID, name, phone or licence…">
         </div>
-        <select class="select" id="filterCity" aria-label="City">
-          <option value="">All Cities</option>
+
+        <select class="select" id="filterCity" aria-label="Location">
+          <option value="">All Locations</option>
         </select>
-        <select class="select" id="filterStatus" aria-label="Status">
-          <option value="">All Status</option>
-          <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
+
+        <select class="select" id="filterStatus" aria-label="Driver status">
+          <option value="">All Driver Statuses</option>
+          <option value="Online">Online</option>
+          <option value="Offline">Offline</option>
+          <option value="Busy">Busy</option>
+          <option value="On Trip">On Trip</option>
         </select>
-        <button class="btn btn-soft" id="btnReset">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 4v4h-4"/></svg>
+
+        <button class="btn btn-soft" id="btnReset" type="button">
           Reset
         </button>
       </div>
 
-      <!-- Agents table -->
       <div class="table-wrap">
         <div class="table-scroll">
           <table class="tbl" id="agentsTable">
             <thead>
               <tr>
-                <th>Agent ID</th>
-                <th>Agent Name</th>
+                <th>Driver ID</th>
+                <th>Driver Name</th>
                 <th>Phone</th>
-                <th>City</th>
-                <th>Total Transactions</th>
-                <th>Total Transfer Volume</th>
-                <th>Total Commission Earned</th>
-                <th>Pending Commission</th>
-                <th>Status</th>
+                <th>Location</th>
+                <th>Total Trips</th>
+                <th>Ride Volume</th>
+                <th>Commission Earned</th>
+                <th>Pending Settlement</th>
+                <th>Driver Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -96,43 +105,35 @@
         <div class="pagination" id="pagination"></div>
       </div>
 
-      <!-- Tax & Commission Rules -->
       <div class="rule-card" id="ruleCard" style="margin-top:22px">
         <div class="head">
           <div class="ic ic-brand">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M3 6h18M3 12h18M3 18h18M7 3v18M17 3v18"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" width="20" height="20">
+              <path d="M3 6h18M3 12h18M3 18h18M7 3v18M17 3v18"/>
+            </svg>
           </div>
           <div>
-            <div class="ttl">Tax &amp; Commission Rules</div>
-            <div class="sub">Demo editable configuration — connect your backend to persist.</div>
+            <div class="ttl">Vehicle Pricing &amp; Commission Rules</div>
+            <div class="sub">
+              Read-only values loaded from the VehiclePricing database model.
+            </div>
           </div>
         </div>
-        <div class="field-grid">
-          <div class="form-group" style="margin-bottom:0">
-            <label for="ruleFee">Transfer Fee (FCFA)</label>
-            <input type="number" class="input" id="ruleFee" min="0" step="1" value="25">
-            <p class="text-muted" style="font-size:11.5px;margin-top:6px">Flat FCFA fee applied to each transfer / ride payment on the platform.</p>
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label for="ruleAgent">Agent Commission Percentage (%)</label>
-            <input type="number" class="input" id="ruleAgent" min="0" max="100" step="0.1" value="5">
-            <p class="text-muted" style="font-size:11.5px;margin-top:6px">Share of platform commission credited to the agent who onboarded the ride.</p>
-          </div>
-          <div class="form-group" style="grid-column:1 / -1;margin-bottom:0">
-            <label for="rulePlatform">Platform Commission Percentage (%)</label>
-            <input type="number" class="input" id="rulePlatform" min="0" max="100" step="0.1" value="15">
-            <p class="text-muted" style="font-size:11.5px;margin-top:6px">Percentage of every ride fare retained by MOTOTAXI before driver payout.</p>
-          </div>
-        </div>
-        <div class="flex gap-12 mt-16">
-          <button class="btn btn-primary" id="btnSaveRules">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4 10-10"/></svg>
-            Save Changes
-          </button>
-          <button class="btn btn-ghost" id="btnResetRules">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 4v4h-4"/></svg>
-            Reset
-          </button>
+
+        <div class="table-scroll">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Vehicle Type</th>
+                <th>Base Fare</th>
+                <th>Per KM Rate</th>
+                <th>Minimum Fare</th>
+                <th>Platform Commission</th>
+              </tr>
+            </thead>
+            <tbody id="pricingRulesBody"></tbody>
+          </table>
         </div>
       </div>
     </main>
@@ -140,10 +141,21 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="js/demo-data.js"></script>
-  <script src="js/i18n.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/commissions.js"></script>
+  {{ drivers_json|json_script:"commission-drivers-data" }}
+  {{ pricing_rules_json|json_script:"commission-pricing-data" }}
+
+  <script>
+    window.MOTOTAXI_DATA = window.MOTOTAXI_DATA || {};
+    window.MOTOTAXI_DATA.COMMISSION_DRIVERS =
+      JSON.parse(document.getElementById("commission-drivers-data").textContent);
+    window.MOTOTAXI_DATA.COMMISSION_PRICING =
+      JSON.parse(document.getElementById("commission-pricing-data").textContent);
+  </script>
+
+  <script src="{% static 'js/demo-data.js' %}"></script>
+  <script src="{% static 'js/i18n.js' %}"></script>
+  <script src="{% static 'js/app.js' %}"></script>
+  <script src="{% static 'js/ui.js' %}"></script>
+  <script src="{% static 'js/commissions.js' %}"></script>
 </body>
 </html>

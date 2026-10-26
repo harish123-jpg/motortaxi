@@ -1,10 +1,9 @@
-"""Commissions (per-driver breakdown)."""
-from datetime import timedelta
+
+"""Driver commission management."""
 from decimal import Decimal
 
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
-from django.utils import timezone
 
 from drivers.models import DriverProfile
 from vehicles.models import VehiclePricing
@@ -15,68 +14,148 @@ from .helpers import paginate
 
 
 def _driver_rows(search=""):
-    """All drivers + their totals using 2 queries total (was 4 queries per driver)."""
-    qs = DriverProfile.objects.select_related("user", "wallet")
+    """Return drivers with their existing commission breakdowns."""
+    queryset = DriverProfile.objects.select_related("user", "wallet")
+
     if search:
-        qs = qs.filter(
-            Q(user__full_name__icontains=search) | Q(user__phone_number__icontains=search)
+        query = (
+            Q(user__full_name__icontains=search)
+            | Q(user__username__icontains=search)
+            | Q(user__phone_number__icontains=search)
             | Q(license_number__icontains=search)
         )
-    stats = services.driver_commission_map()
-    rows = [{"driver": d, **(stats.get(d.pk) or services.empty_breakdown())} for d in qs]
-    rows.sort(key=lambda r: r["total_earned"], reverse=True)
+        if search.isdigit():
+            query |= Q(pk=int(search))
+        queryset = queryset.filter(query)
+
+    commission_map = services.driver_commission_map()
+    rows = []
+
+    for driver in queryset:
+        breakdown = (
+            commission_map.get(driver.pk)
+            or services.empty_breakdown()
+        )
+
+        rows.append({
+            "driver": driver,
+            "breakdown": breakdown,
+        })
+
+    rows.sort(
+        key=lambda row: Decimal(
+            str(row["breakdown"].get("total_earned") or 0)
+        ),
+        reverse=True,
+    )
     return rows
 
 
 def _filter_state(request):
-    return {k: request.GET.get(k, "") for k in ("search", "city", "status")}
+    return {
+        key: request.GET.get(key, "")
+        for key in ("search", "city", "status")
+    }
 
 
-def _settlement_history(limit=6):
-    """DEMO DATA: there is no settlement table yet. Replace with a real model before production."""
-    stats = services.driver_commission_map()
-    now = timezone.now()
-    out = []
-    drivers = DriverProfile.objects.select_related("user").order_by("pk")[:limit]
-    for i, d in enumerate(drivers, start=1):
-        earned = (stats.get(d.pk) or services.empty_breakdown())["total_earned"]
-        out.append({
-            "id": f"SETT-{i:03d}", "driver": d, "amount": earned / 4,
-            "date": now - timedelta(days=i * 3), "status": "SUCCESSFUL",
-        })
-    return out
+def _driver_name(driver):
+    user = driver.user
+    return (
+        getattr(user, "full_name", "")
+        or user.get_full_name()
+        or getattr(user, "username", "")
+        or f"Driver {driver.pk}"
+    ).strip()
 
 
-def _driver_settlements(driver):
-    """DEMO DATA, see above."""
-    now = timezone.now()
-    return [
-        {"id": f"SETT-{driver.pk}-{i:03d}", "amount": Decimal("5000") * i,
-         "date": now - timedelta(days=i * 7), "status": "SUCCESSFUL"}
-        for i in range(1, 5)
-    ]
+def _first_value(data, *keys, default=0):
+    """Read the first available field from a commission breakdown."""
+    for key in keys:
+        if key in data and data[key] is not None:
+            return data[key]
+    return default
+
+
+def _driver_json(row):
+    driver = row["driver"]
+    breakdown = row["breakdown"]
+    user = driver.user
+
+    location = getattr(driver, "current_location", "") or ""
+    wallet = getattr(driver, "wallet", None)
+
+    return {
+        "pk": driver.pk,
+        "id": f"DRV-{driver.pk:04d}",
+        "name": _driver_name(driver),
+        "phone": getattr(user, "phone_number", "") or "—",
+        "location": str(location) or "—",
+        "status": driver.get_status_display(),
+        "verificationStatus": driver.get_verification_status_display(),
+        "licenseNumber": driver.license_number or "—",
+        "trips": _first_value(
+            breakdown, "total_trips", "total_transactions", "trips"
+        ),
+        "volume": str(_first_value(
+            breakdown, "total_fare", "total_volume", "total_ride_volume"
+        )),
+        "earned": str(_first_value(
+            breakdown, "total_earned", "commission_earned"
+        )),
+        # There is no settlement model, so pending is intentionally unknown.
+        "pending": None,
+        "walletBalance": str(wallet.balance) if wallet else None,
+    }
 
 
 @admin_required
 def commissions(request):
     filters = _filter_state(request)
     rows = _driver_rows(filters["search"].strip())
-    ctx = {
-        "summary": services.commissions_summary(),
-        "page_obj": paginate(request, rows, per_page=6) if rows else None,
+
+    pricing_rules = list(
+        VehiclePricing.objects.all().order_by("vehicle_type", "pk")
+    )
+
+    page_obj = paginate(request, rows, per_page=6) if rows else None
+
+    context = {
+        "page_obj": page_obj,
         "filters": filters,
-        "pricing_rules": list(VehiclePricing.objects.all()),
-        "settlements": _settlement_history(),
+        "drivers_json": [_driver_json(row) for row in rows],
+        "pricing_rules_json": [
+            {
+                "vehicleType": pricing.get_vehicle_type_display(),
+                "baseFare": str(pricing.base_fare),
+                "perKmRate": str(pricing.per_km_rate),
+                "minimumFare": str(pricing.minimum_fare),
+                "platformCommissionPercent": str(
+                    pricing.platform_commission_percent
+                ),
+            }
+            for pricing in pricing_rules
+        ],
     }
-    return render(request, "commissions.html", ctx)
+    return render(request, "commissions.html", context)
 
 
 @admin_required
 def commission_detail(request, pk):
-    driver = get_object_or_404(DriverProfile.objects.select_related("user", "wallet"), pk=pk)
-    ctx = {
+    driver = get_object_or_404(
+        DriverProfile.objects.select_related("user", "wallet"),
+        pk=pk,
+    )
+
+    breakdown = services.driver_commission_breakdown(driver)
+
+    context = {
         "driver": driver,
-        "breakdown": services.driver_commission_breakdown(driver),
-        "settlements": _driver_settlements(driver),
+        "breakdown": breakdown,
+        # Settlement history is not available until a real model exists.
+        "settlements": [],
     }
-    return render(request, "_partials/commission_detail.html", ctx)
+    return render(
+        request,
+        "_partials/commission_detail.html",
+        context,
+    )

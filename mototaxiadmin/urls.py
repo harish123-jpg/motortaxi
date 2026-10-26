@@ -73,13 +73,32 @@ urlpatterns = [
         name="vehicle_update",
     ),
     # Wallets
-    path("wallets/", wallets.wallets, name="wallets"),
-    path("wallets/<int:pk>/detail/", wallets.wallet_detail, name="wallet_detail"),
-
+    path(
+        "wallets/",
+        wallets.wallets,
+        name="wallets",
+    ),
+    path(
+        "wallets/<int:pk>/detail/",
+        wallets.wallet_detail,
+        name="wallet_detail",
+    ),
+    path(
+        "wallets/top-up/",
+        wallets.wallet_top_up,
+        name="wallet_top_up",
+    ),
     # Transactions
-    path("transactions/", transactions.transactions, name="transactions"),
-    path("transactions/<int:pk>/detail/", transactions.transaction_detail, name="transaction_detail"),
-
+    path(
+        "transactions/",
+        transactions.transactions,
+        name="transactions",
+    ),
+    path(
+        "transactions/<int:pk>/detail/",
+        transactions.transaction_detail,
+        name="transaction_detail",
+    ),
     # Commissions
     path("commissions/", commissions.commissions, name="commissions"),
     path("commissions/<int:pk>/detail/", commissions.commission_detail, name="commission_detail"),

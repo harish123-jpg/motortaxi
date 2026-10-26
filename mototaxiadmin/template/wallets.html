@@ -1,3 +1,5 @@
+
+{% load static %}
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
@@ -7,10 +9,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <meta name="csrf-token" content="{{ csrf_token }}">
 </head>
 <body>
-  <div class="demo-banner"><span>● DEMO DATA — Static admin template. No backend connected. All figures are illustrative.</span></div>
+  <div class="demo-banner">
+    <span>● LIVE DATABASE — Driver wallets loaded from Django.</span>
+  </div>
 
   <div class="app" id="app">
     <aside class="sidebar" id="sidebar"></aside>
@@ -18,60 +23,69 @@
     <header class="topbar" id="topbar"></header>
 
     <main class="main">
-      <!-- Breadcrumb -->
       <div class="breadcrumb">
-        <a href="dashboard.html">Home</a>
+        <a href="{% url 'mototaxiadmin:dashboard' %}">Home</a>
         <span class="sep">/</span>
         <span class="current">Wallets</span>
       </div>
 
-      <!-- Page head -->
       <div class="page-head">
         <div>
           <h1 class="title">Wallets</h1>
-          <p class="desc">Manage customer, driver and agent e-wallets, balances and movement history.</p>
+          <p class="desc">
+            Manage driver e-wallets, balances and transaction history.
+          </p>
         </div>
         <div class="actions">
           <button class="btn" id="btnExport">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>
+            </svg>
             Export CSV
           </button>
           <button class="btn btn-primary" id="btnTopUp">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
             Top up Wallet
           </button>
         </div>
       </div>
 
-      <!-- Top stats -->
       <div class="stat-grid" id="statGrid"></div>
 
-      <!-- Toolbar / filters -->
       <div class="toolbar" id="toolbar">
         <div class="search">
           <span class="ic">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <circle cx="11" cy="11" r="7"/>
+              <path d="M21 21l-4.5-4.5"/>
+            </svg>
           </span>
-          <input type="search" id="searchWallet" placeholder="Search by Wallet ID, owner name or phone…">
+          <input type="search" id="searchWallet"
+                 placeholder="Search by Wallet ID, owner name, phone or license…">
         </div>
+
         <select class="select" id="filterType" aria-label="Owner Type">
           <option value="">All Types</option>
-          <option value="Customer">Customer</option>
           <option value="Driver">Driver</option>
-          <option value="Agent">Agent</option>
         </select>
+
         <select class="select" id="filterStatus" aria-label="Wallet Status">
           <option value="">All Status</option>
           <option value="Active">Active</option>
           <option value="Inactive">Inactive</option>
         </select>
+
         <button class="btn btn-soft" id="btnReset">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 4v4h-4"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12a9 9 0 1 1-3-6.7L21 8"/>
+            <path d="M21 4v4h-4"/>
+          </svg>
           Reset
         </button>
       </div>
 
-      <!-- Wallets table -->
       <div class="table-wrap">
         <div class="table-scroll">
           <table class="tbl" id="walletsTable">
@@ -99,10 +113,30 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="js/demo-data.js"></script>
-  <script src="js/i18n.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/wallets.js"></script>
+  <script src="{% static 'js/demo-data.js' %}"></script>
+
+  {{ wallets_json|json_script:"wallets-data" }}
+  {{ transactions_json|json_script:"wallet-transactions-data" }}
+
+  <script>
+    window.MOTOTAXI_DATA = window.MOTOTAXI_DATA || {};
+
+    window.MOTOTAXI_DATA.WALLETS = JSON.parse(
+      document.getElementById("wallets-data").textContent
+    );
+
+    window.MOTOTAXI_DATA.WALLET_TRANSACTIONS = JSON.parse(
+      document.getElementById("wallet-transactions-data").textContent
+    );
+
+    window.MOTOTAXI_WALLET_URLS = {
+      topUp: "{% url 'mototaxiadmin:wallet_top_up' %}"
+    };
+  </script>
+
+  <script src="{% static 'js/i18n.js' %}"></script>
+  <script src="{% static 'js/app.js' %}"></script>
+  <script src="{% static 'js/ui.js' %}"></script>
+  <script src="{% static 'js/wallets.js' %}"></script>
 </body>
 </html>

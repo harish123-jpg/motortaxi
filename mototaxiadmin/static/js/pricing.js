@@ -1,211 +1,437 @@
-/* ===================================================================
-   MOTOTAXI ADMIN — pricing.js
-   Fare Pricing configuration page controller.
-   - Populates Bike + Car rule cards from D.FARE_RULES.
-   - Live fare calculator: re-computes on every input/change in both
-     rule cards and the calculator inputs (no button click required).
-   - Per-card Reset/Save + page-level Reset All / Save All (demo).
-   =================================================================== */
 
+/* MOTOTAXI ADMIN — database-connected fare pricing */
 (function () {
-  const D = window.MOTOTAXI_DATA;
+  "use strict";
+
+  const D = window.MOTOTAXI_DATA || {};
   const UI = window.MOTOTAXI_UI;
-  const t = window.MOTOTAXI_I18N.t;
+  const VEHICLES = ["Bike", "Car"];
 
-  // Bootstrap shared shell (sidebar + topbar + theme + i18n wiring)
-  bootPage('pricing', 'Fare Pricing');
-  window.MOTOTAXI_I18N.applyI18n();
+  bootPage("pricing", "Fare Pricing");
 
-  /* ---------- Field IDs for each vehicle ---------- */
-  const FIELDS = ['base', 'perKm', 'min', 'commission', 'nightEnabled', 'nightStart', 'nightEnd', 'multiplier'];
-  const VEHICLES = ['Bike', 'Car'];
-
-  /* ---------- Populate one rule card from D.FARE_RULES ---------- */
-  function populateCard(vehicle) {
-    const rule = D.FARE_RULES[vehicle];
-    if (!rule) return;
-    const prefix = vehicle.toLowerCase();
-    FIELDS.forEach((key) => {
-      const el = document.getElementById(prefix + '_' + key);
-      if (!el) return;
-      const v = rule[key];
-      if (typeof v === 'boolean') el.checked = v;
-      else el.value = v;
-    });
+  if (window.MOTOTAXI_I18N?.applyI18n) {
+    window.MOTOTAXI_I18N.applyI18n();
   }
 
-  /* ---------- Read one rule card's current values from the inputs ---------- */
-  function readCard(vehicle) {
-    const prefix = vehicle.toLowerCase();
-    const get = (key) => document.getElementById(prefix + '_' + key);
+  const main = document.querySelector("main.main");
+  const saveUrl = main?.dataset.saveUrl;
+
+  const csrfInput = document.querySelector(
+    '#pricingCsrfForm input[name="csrfmiddlewaretoken"]'
+  );
+  const csrfToken = csrfInput?.value || "";
+
+  const FIELD_MAP = {
+    base: "base_fare",
+    perKm: "per_km_rate",
+    min: "minimum_fare",
+    commission: "platform_commission_percent",
+    multiplier: "night_multiplier",
+    nightEnabled: "night_pricing_enabled",
+    nightStart: "night_start_hour",
+    nightEnd: "night_end_hour"
+  };
+
+  const initialRules = {};
+
+  function hourToTime(value) {
+    const hour = Math.max(0, Math.min(23, Number(value) || 0));
+    return `${String(hour).padStart(2, "0")}:00`;
+  }
+
+  function timeToHour(value) {
+    const match = /^(\d{2}):\d{2}$/.exec(value || "");
+    return match ? Number(match[1]) : 0;
+  }
+
+  function ruleFor(vehicle) {
+    const type = vehicle.toUpperCase();
+    return (window.MOTOTAXI_PRICING_RULES || []).find(
+      rule => rule.vehicle_type === type
+    ) || null;
+  }
+
+  function field(vehicle, key) {
+    return document.getElementById(
+      `${vehicle.toLowerCase()}_${key}`
+    );
+  }
+
+  function formatMoney(value) {
+    return typeof D.fmtFCFA === "function"
+      ? D.fmtFCFA(value)
+      : `${Math.round(Number(value) || 0).toLocaleString()} FCFA`;
+  }
+
+  function getInitialCard(vehicle) {
+    const rule = ruleFor(vehicle);
+    if (!rule) return null;
+
     return {
-      base:           parseFloat(get('base').value)       || 0,
-      perKm:          parseFloat(get('perKm').value)       || 0,
-      min:            parseFloat(get('min').value)         || 0,
-      commissionPct:  parseFloat(get('commission').value)  || 0,
-      nightEnabled:   get('nightEnabled').checked,
-      nightStart:     get('nightStart').value               || '22:00',
-      nightEnd:       get('nightEnd').value                 || '05:00',
-      multiplier:     parseFloat(get('multiplier').value)  || 1,
+      base: Number(rule.base_fare),
+      perKm: Number(rule.per_km_rate),
+      min: Number(rule.minimum_fare),
+      commission: Number(rule.platform_commission_percent),
+      multiplier: Number(rule.night_multiplier),
+      nightEnabled: Boolean(rule.night_pricing_enabled),
+      nightStart: hourToTime(rule.night_start_hour),
+      nightEnd: hourToTime(rule.night_end_hour)
     };
   }
 
-  /* ---------- Reset one card to defaults, re-populate, toast ---------- */
+  function writeCard(vehicle, values) {
+    if (!values) return;
+
+    Object.entries(values).forEach(([key, value]) => {
+      const input = field(vehicle, key);
+      if (!input) return;
+
+      if (input.type === "checkbox") {
+        input.checked = Boolean(value);
+      } else {
+        input.value = value ?? "";
+      }
+    });
+  }
+
+  function readCard(vehicle) {
+    const get = key => field(vehicle, key);
+
+    return {
+      base: Number(get("base")?.value),
+      perKm: Number(get("perKm")?.value),
+      min: Number(get("min")?.value),
+      commission: Number(get("commission")?.value),
+      multiplier: Number(get("multiplier")?.value),
+      nightEnabled: Boolean(get("nightEnabled")?.checked),
+      nightStart: get("nightStart")?.value || "22:00",
+      nightEnd: get("nightEnd")?.value || "05:00"
+    };
+  }
+
+  function validateCard(vehicle) {
+    const values = readCard(vehicle);
+    const errors = [];
+
+    const numericFields = [
+      ["Base fare", values.base, 0, Infinity],
+      ["Price per kilometre", values.perKm, 0, Infinity],
+      ["Minimum fare", values.min, 0, Infinity],
+      ["Platform commission", values.commission, 0, 100],
+      ["Night multiplier", values.multiplier, 1, 3]
+    ];
+
+    numericFields.forEach(([label, value, min, max]) => {
+      if (!Number.isFinite(value) || value < min || value > max) {
+        errors.push(
+          `${vehicle}: ${label} must be between ${min} and ${max === Infinity ? "unlimited" : max}.`
+        );
+      }
+    });
+
+    ["nightStart", "nightEnd"].forEach(key => {
+      if (!/^\d{2}:\d{2}$/.test(values[key])) {
+        errors.push(`${vehicle}: select valid night hours.`);
+      }
+    });
+
+    return errors;
+  }
+
+  function populateFromDatabase() {
+    VEHICLES.forEach(vehicle => {
+      const values = getInitialCard(vehicle);
+      if (values) {
+        initialRules[vehicle] = { ...values };
+        writeCard(vehicle, values);
+      } else {
+        const card = document.getElementById(
+          `${vehicle.toLowerCase()}Card`
+        );
+        if (card) {
+          card.insertAdjacentHTML(
+            "afterbegin",
+            `<p class="text-muted" style="margin-bottom:12px">
+              No ${vehicle} pricing record exists yet. Enter values and save
+              to create one.
+            </p>`
+          );
+        }
+      }
+    });
+  }
+
+  function buildPayload(vehicleTypes) {
+    const formData = new FormData();
+
+    vehicleTypes.forEach(vehicle => {
+      const prefix = vehicle.toUpperCase().toLowerCase() + "_";
+      const values = readCard(vehicle);
+
+      formData.append("vehicle_types", vehicle.toUpperCase());
+
+      Object.entries(FIELD_MAP).forEach(([uiKey, modelField]) => {
+        let value = values[uiKey];
+
+        if (uiKey === "nightStart" || uiKey === "nightEnd") {
+          value = timeToHour(value);
+        }
+
+        if (uiKey === "nightEnabled") {
+          formData.append(
+            prefix + modelField,
+            value ? "on" : "off"
+          );
+        } else {
+          formData.append(prefix + modelField, String(value));
+        }
+      });
+    });
+
+    return formData;
+  }
+
+  async function saveVehicles(vehicleTypes) {
+    if (!saveUrl) {
+      UI.toast("error", "Configuration error", "The pricing save URL is missing.");
+      return false;
+    }
+
+    const errors = vehicleTypes.flatMap(validateCard);
+    if (errors.length) {
+      UI.toast("error", "Check pricing values", errors.slice(0, 3).join(" "));
+      return false;
+    }
+
+    const buttons = [
+      document.getElementById("btnSaveAll"),
+      ...vehicleTypes.map(vehicle =>
+        document.getElementById(`${vehicle.toLowerCase()}_save`)
+      )
+    ].filter(Boolean);
+
+    buttons.forEach(button => {
+      button.disabled = true;
+    });
+
+    try {
+      const response = await fetch(saveUrl, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": csrfToken,
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        body: buildPayload(vehicleTypes),
+        credentials: "same-origin"
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        const messages = result.errors || [
+          "The server could not save these pricing rules."
+        ];
+        UI.toast("error", "Save failed", messages.join(" "));
+        return false;
+      }
+
+      // Update reset baseline only after the server confirms success.
+      vehicleTypes.forEach(vehicle => {
+        const values = readCard(vehicle);
+        initialRules[vehicle] = { ...values };
+      });
+
+      // Replace browser-side initial records with the saved database values.
+      const saved = result.rules || {};
+      const currentRules = window.MOTOTAXI_PRICING_RULES || [];
+
+      Object.entries(saved).forEach(([type, rule]) => {
+        const index = currentRules.findIndex(
+          item => item.vehicle_type === type
+        );
+
+        if (index >= 0) currentRules[index] = rule;
+        else currentRules.push(rule);
+      });
+
+      window.MOTOTAXI_PRICING_RULES = currentRules;
+
+      calculateFare();
+      UI.toast("success", "Pricing saved", result.message || "Rules saved successfully.");
+      return true;
+    } catch (error) {
+      UI.toast(
+        "error",
+        "Network error",
+        "Could not reach the server. Check your connection and try again."
+      );
+      return false;
+    } finally {
+      buttons.forEach(button => {
+        button.disabled = false;
+      });
+    }
+  }
+
   function resetCard(vehicle) {
-    populateCard(vehicle);
+    if (!initialRules[vehicle]) {
+      UI.toast(
+        "info",
+        "No saved values",
+        "No database pricing record was loaded for this vehicle."
+      );
+      return;
+    }
+
+    writeCard(vehicle, initialRules[vehicle]);
     calculateFare();
-    UI.toast('info', `${vehicle} fares reset`, `${vehicle} pricing rules restored from defaults.`);
+
+    UI.toast(
+      "info",
+      `${vehicle} reset`,
+      "Values restored to the last values loaded or saved from the database."
+    );
   }
 
-  /* ---------- Save one card (demo) ---------- */
-  function saveCard(vehicle) {
-    UI.toast('success', `${vehicle} pricing saved`, `${vehicle} pricing saved to demo state — connect your backend to persist.`);
-  }
-
-  /* ---------- Reset both cards + re-run calculator ---------- */
   async function resetAll() {
     const ok = await UI.confirm({
-      title: 'Reset all fare rules?',
-      message: 'This restores both Bike and Car fare rules to the demo defaults. Any unsaved edits in the rule cards above will be lost.',
-      confirmText: 'Reset all',
-      cancelText: 'Cancel',
-      danger: true,
+      title: "Reset all fare rules?",
+      message: "Discard unsaved changes and restore the last database values for Bike and Car?",
+      confirmText: "Reset all",
+      cancelText: "Cancel",
+      danger: true
     });
+
     if (!ok) return;
-    VEHICLES.forEach(populateCard);
+
+    VEHICLES.forEach(resetCard);
     calculateFare();
-    UI.toast('info', 'All fare rules reset', 'Bike and Car pricing restored to defaults.');
   }
 
-  /* ---------- Save all (demo) ---------- */
-  function saveAll() {
-    UI.toast('success', 'Pricing rules saved', 'Pricing rules saved to in-memory demo state — connect your backend to persist.');
-  }
-
-  /* ---------- Render fare-breakdown rows ---------- */
   function renderBreakdown(rows) {
-    const html = rows.map((r) => {
-      const noteHtml = r.note
-        ? ` <span class="text-muted" style="font-weight:400;font-size:11.5px">— ${r.note}</span>`
-        : '';
-      const valStyle = r.style ? ` style="${r.style}"` : '';
-      const cls = r.total ? 'fare-row total' : 'fare-row';
-      return `<div class="${cls}">
-        <span class="lbl">${r.label}${noteHtml}</span>
-        <span class="val"${valStyle}>${r.value}</span>
-      </div>`;
-    }).join('');
-    document.getElementById('fareBreakdown').innerHTML = html;
+    document.getElementById("fareBreakdown").innerHTML =
+      rows.map(row => {
+        const note = row.note
+          ? ` <span class="text-muted" style="font-weight:400;font-size:11.5px">— ${row.note}</span>`
+          : "";
+        const style = row.style ? ` style="${row.style}"` : "";
+        const className = row.total ? "fare-row total" : "fare-row";
+
+        return `
+          <div class="${className}">
+            <span class="lbl">${row.label}${note}</span>
+            <span class="val"${style}>${row.value}</span>
+          </div>`;
+      }).join("");
   }
 
-  /* ---------- Core fare calculation logic ---------- */
   function calculateFare() {
-    // Calculator inputs
-    const vehicle   = document.getElementById('calc_vehicle').value;   // 'Bike' | 'Car'
-    const distance  = parseFloat(document.getElementById('calc_distance').value) || 0;
-    const timeOfDay = document.getElementById('calc_time').value;       // 'Day' | 'Night'
-
-    // Read the matching rule card's CURRENT input values (so the calculator is live)
+    const vehicle = document.getElementById("calc_vehicle").value;
+    const distanceInput = document.getElementById("calc_distance");
+    const distance = Math.max(0, Number(distanceInput.value) || 0);
+    const timeOfDay = document.getElementById("calc_time").value;
     const rule = readCard(vehicle);
-    const base           = rule.base;
-    const perKm          = rule.perKm;
-    const min            = rule.min;
-    const commissionPct  = rule.commissionPct;
-    const nightEnabled   = rule.nightEnabled;
-    const nightStart     = rule.nightStart;
-    const nightEnd       = rule.nightEnd;
-    const multiplier     = rule.multiplier;
 
-    // Computation (per spec)
-    const distanceCharge   = perKm * distance;                          // shown separately
-    const baseFareAmount    = base + distanceCharge;                    // base + perKm*distance
-    const flooredFare      = Math.max(baseFareAmount, min);             // min fare floor applied BEFORE night
-    const isNightTime       = (timeOfDay === 'Night' && nightEnabled);
-    const totalFare         = isNightTime ? flooredFare * multiplier : flooredFare;
-    const nightSurcharge    = isNightTime ? flooredFare * (multiplier - 1) : 0;
-    const platformCommission = totalFare * commissionPct / 100;
-    const driverPayout       = totalFare - platformCommission;
+    const distanceCharge = rule.perKm * distance;
+    const rawFare = rule.base + distanceCharge;
+    const flooredFare = Math.max(rawFare, rule.min);
+    const nightActive = timeOfDay === "Night" && rule.nightEnabled;
+    const totalFare = nightActive
+      ? flooredFare * rule.multiplier
+      : flooredFare;
+    const nightSurcharge = nightActive
+      ? totalFare - flooredFare
+      : 0;
+    const platformCommission = totalFare * rule.commission / 100;
+    const driverPayout = totalFare - platformCommission;
 
-    // Build display rows (each value formatted via D.fmtFCFA where appropriate)
     const rows = [
-      { label: 'Base Fare',
-        value: D.fmtFCFA(base),
-        note: 'fixed pickup fare' },
-      { label: 'Distance Charge',
-        value: D.fmtFCFA(distanceCharge),
-        note: `${distance} km × ${D.fmtFCFA(perKm)}/km` },
-      { label: 'Night Surcharge',
-        value: isNightTime
-          ? D.fmtFCFA(nightSurcharge)
+      {
+        label: "Base Fare",
+        value: formatMoney(rule.base),
+        note: "fixed pickup fare"
+      },
+      {
+        label: "Distance Charge",
+        value: formatMoney(distanceCharge),
+        note: `${distance} km × ${formatMoney(rule.perKm)}/km`
+      },
+      {
+        label: "Subtotal Before Night Pricing",
+        value: formatMoney(flooredFare),
+        note: `minimum fare floor = ${formatMoney(rule.min)}`
+      },
+      {
+        label: "Night Surcharge",
+        value: nightActive
+          ? formatMoney(nightSurcharge)
           : '<span class="text-muted">Not applicable</span>',
-        note: isNightTime ? `× ${multiplier} multiplier applied (active ${nightStart} – ${nightEnd})` : 'daytime fare' },
-      { label: 'Subtotal (before night)',
-        value: D.fmtFCFA(flooredFare),
-        note: `min fare floor = ${D.fmtFCFA(min)}` },
-      { label: 'Night Multiplier Note',
-        value: isNightTime
-          ? '<span class="text-brand">Night pricing active</span>'
-          : '<span class="text-muted">Daytime fare</span>' },
-      { label: 'Total Customer Fare',
-        value: D.fmtFCFA(totalFare),
-        total: true },
-      { label: 'Platform Commission',
-        value: D.fmtFCFA(platformCommission),
-        note: `${commissionPct}% of total` },
-      { label: 'Driver Payout',
-        value: D.fmtFCFA(driverPayout),
-        style: 'color: var(--green)' },
+        note: nightActive
+          ? `× ${rule.multiplier} multiplier (${rule.nightStart}–${rule.nightEnd})`
+          : "daytime fare or night pricing disabled"
+      },
+      {
+        label: "Total Customer Fare",
+        value: formatMoney(totalFare),
+        total: true
+      },
+      {
+        label: "Platform Commission",
+        value: formatMoney(platformCommission),
+        note: `${rule.commission}% of total`
+      },
+      {
+        label: "Driver Payout Estimate",
+        value: formatMoney(driverPayout),
+        style: "color:var(--green)"
+      }
     ];
 
     renderBreakdown(rows);
   }
 
-  /* ---------- Wire live events: every relevant input recalculates immediately ---------- */
   function wireLiveCalculator() {
-    // Rule-card inputs (Bike + Car)
-    VEHICLES.forEach((vehicle) => {
-      const prefix = vehicle.toLowerCase();
-      FIELDS.forEach((key) => {
-        const el = document.getElementById(prefix + '_' + key);
-        if (!el) return;
-        // checkbox triggers 'change', number/time/select trigger 'input' AND 'change'
-        el.addEventListener('input', calculateFare);
-        el.addEventListener('change', calculateFare);
+    VEHICLES.forEach(vehicle => {
+      Object.keys(FIELD_MAP).forEach(key => {
+        const input = field(vehicle, key);
+        if (!input) return;
+
+        input.addEventListener("input", calculateFare);
+        input.addEventListener("change", calculateFare);
       });
     });
 
-    // Calculator inputs
-    ['calc_vehicle', 'calc_distance', 'calc_time'].forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.addEventListener('input', calculateFare);
-      el.addEventListener('change', calculateFare);
+    ["calc_vehicle", "calc_distance", "calc_time"].forEach(id => {
+      const input = document.getElementById(id);
+      if (!input) return;
+
+      input.addEventListener("input", calculateFare);
+      input.addEventListener("change", calculateFare);
     });
 
-    // Calculate button (optional — calculator is already live)
-    document.getElementById('calc_btn').addEventListener('click', () => {
+    document.getElementById("calc_btn")?.addEventListener("click", () => {
       calculateFare();
-      UI.toast('info', 'Fare recalculated', 'Estimate refreshed from current rule inputs.');
+      UI.toast("info", "Fare recalculated", "Estimate refreshed using the current input values.");
     });
   }
 
-  /* ---------- Wire per-card and page-level buttons ---------- */
   function wireButtons() {
-    // Per-card Save / Reset
-    VEHICLES.forEach((vehicle) => {
-      const saveBtn = document.getElementById(vehicle.toLowerCase() + '_save');
-      const resetBtn = document.getElementById(vehicle.toLowerCase() + '_reset');
-      if (saveBtn)  saveBtn.addEventListener('click',  () => saveCard(vehicle));
-      if (resetBtn) resetBtn.addEventListener('click', () => resetCard(vehicle));
+    VEHICLES.forEach(vehicle => {
+      document.getElementById(`${vehicle.toLowerCase()}_save`)
+        ?.addEventListener("click", () => saveVehicles([vehicle]));
+
+      document.getElementById(`${vehicle.toLowerCase()}_reset`)
+        ?.addEventListener("click", () => resetCard(vehicle));
     });
 
-    // Page-level Reset All + Save All
-    document.getElementById('btnResetAll').addEventListener('click', resetAll);
-    document.getElementById('btnSaveAll').addEventListener('click', saveAll);
+    document.getElementById("btnSaveAll")
+      ?.addEventListener("click", () => saveVehicles(VEHICLES));
+
+    document.getElementById("btnResetAll")
+      ?.addEventListener("click", resetAll);
   }
 
-  /* ---------- Init ---------- */
-  VEHICLES.forEach(populateCard);
+  populateFromDatabase();
   wireLiveCalculator();
   wireButtons();
   calculateFare();
