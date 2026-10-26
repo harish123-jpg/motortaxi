@@ -1,0 +1,165 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOTOTAXI Admin — Customers</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div class="app" id="app">
+        <aside class="sidebar" id="sidebar"></aside>
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+        <header class="topbar" id="topbar"></header>
+
+        <main class="main">
+            <div class="page-head">
+                <div>
+                    <div class="breadcrumb">
+                        <a href="{% url 'mototaxiadmin:dashboard' %}">Home</a>
+                        <span>/</span>
+                        <span>Customers</span>
+                    </div>
+                    <h1>Customers</h1>
+                    <p class="text-muted">Manage customer accounts, ride history and wallet balances.</p>
+                </div>
+
+                <div class="page-actions">
+                    <button class="btn btn-soft" id="btnExport" type="button">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>
+                        </svg>
+                        Export CSV
+                    </button>
+                    <button class="btn btn-primary" id="btnAdd" type="button">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        Add Customer
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats retain the existing stat-card design. -->
+            <section class="stat-grid" id="statGrid" aria-live="polite"></section>
+
+            <section class="card">
+                <div class="card-head">
+                    <div>
+                        <h2>Customer Directory</h2>
+                        <p class="text-muted">Search, filter and manage registered customers.</p>
+                    </div>
+                </div>
+
+                <div class="toolbar">
+                    <div class="search-box">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="7"/>
+                            <path d="m20 20-4-4"/>
+                        </svg>
+                        <input
+                            class="input"
+                            type="search"
+                            id="custSearch"
+                            placeholder="Search name, phone, email or ID..."
+                            autocomplete="off"
+                        >
+                    </div>
+
+                    <select class="select" id="statusSelect" aria-label="Filter by account status">
+                        <option value="All">All Statuses</option>
+                        <option value="Active">Active</option>
+                        <option value="Blocked">Blocked</option>
+                    </select>
+
+                    <select class="select" id="citySelect" aria-label="Filter by city">
+                        <option value="All">All Cities</option>
+                    </select>
+
+                    <button class="btn btn-soft" id="resetFilters" type="button">Reset</button>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="tbl" id="customersTbl">
+                        <thead>
+                            <tr>
+                                <th>Customer ID</th>
+                                <th>Name</th>
+                                <th>Phone</th>
+                                <th>Email</th>
+                                <th>
+                                    <button class="sort-btn" type="button" data-sort="regDate">
+                                        Registered <span>↕</span>
+                                    </button>
+                                </th>
+                                <th>Rides</th>
+                                <th>Wallet Balance</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="9">Loading customers…</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="table-footer">
+                    <span id="customerCount" class="text-muted"></span>
+                    <div id="custPagination"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Django CSRF token for block/unblock POST requests. -->
+    <form id="csrf-form" hidden>
+        {% csrf_token %}
+    </form>
+
+    <!-- Data generated by the Django view. -->
+    {{ customers_json|json_script:"mototaxi-customers-data" }}
+    {{ cities_json|json_script:"mototaxi-cities-data" }}
+    {{ rides_json|json_script:"mototaxi-rides-data" }}
+    {{ transactions_json|json_script:"mototaxi-transactions-data" }}
+
+    <!-- Shared files are kept so the sidebar, topbar, theme and language work. -->
+    <script src="{% static 'js/demo-data.js' %}"></script>
+    <script src="{% static 'js/i18n.js' %}"></script>
+    <script src="{% static 'js/app.js' %}"></script>
+    <script src="{% static 'js/ui.js' %}"></script>
+
+    <script>
+        window.MOTOTAXI_DATA = window.MOTOTAXI_DATA || {};
+
+        window.MOTOTAXI_DATA.CUSTOMERS =
+            JSON.parse(document.getElementById("mototaxi-customers-data").textContent);
+
+        window.MOTOTAXI_DATA.CAM_CITIES =
+            JSON.parse(document.getElementById("mototaxi-cities-data").textContent);
+
+        window.MOTOTAXI_DATA.RIDES =
+            JSON.parse(document.getElementById("mototaxi-rides-data").textContent);
+
+        window.MOTOTAXI_DATA.TRANSACTIONS =
+            JSON.parse(document.getElementById("mototaxi-transactions-data").textContent);
+
+        window.MOTOTAXI_ENDPOINTS = {
+            blockUserTemplate: "{% url 'mototaxiadmin:user_block' 0 %}",
+            detailUserTemplate: "{% url 'mototaxiadmin:user_detail' 0 %}"
+        };
+    </script>
+
+    <script src="{% static 'js/users.js' %}"></script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+{% load static %}<!DOCTYPE html>
+<html lang="{{ request.session.mototaxi_lang|default:'en' }}" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MOTOTAXI Admin — {% block title %}Dashboard{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="{% static 'mototaxiadmin/css/style.css' %}">
+  <link rel="stylesheet" href="{% static 'mototaxiadmin/css/dashboard-extra.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main">
+      {% if messages %}
+      <div class="dx-alerts">
+        {% for m in messages %}<div class="dx-alert {{ m.tags }}">{{ m }}</div>{% endfor %}
+      </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  {# Logout must be a POST. Any "login.html" link in the sidebar/topbar submits this form. #}
+  <form id="dxLogoutForm" method="post" action="{% url 'mototaxiadmin:logout' %}" hidden>{% csrf_token %}</form>
+
+  <script src="{% static 'mototaxiadmin/js/demo-data.js' %}"></script>
+  <script src="{% static 'mototaxiadmin/js/i18n.js' %}"></script>
+  <script src="{% static 'mototaxiadmin/js/app.js' %}"></script>
+  <script src="{% static 'mototaxiadmin/js/ui.js' %}"></script>
+
+  {# Bridge: the sidebar/topbar are built by app.js with "xxx.html" links. Point them at the Django URLs. #}
+  <script>
+  (function () {
+    var MAP = {
+      "dashboard.html": "{% url 'mototaxiadmin:dashboard' %}",
+      "users.html": "{% url 'mototaxiadmin:users' %}",
+      "drivers.html": "{% url 'mototaxiadmin:drivers' %}",
+      "rides.html": "{% url 'mototaxiadmin:rides' %}",
+      "vehicles.html": "{% url 'mototaxiadmin:vehicles' %}",
+      "wallets.html": "{% url 'mototaxiadmin:wallets' %}",
+      "transactions.html": "{% url 'mototaxiadmin:transactions' %}",
+      "commissions.html": "{% url 'mototaxiadmin:commissions' %}",
+      "pricing.html": "{% url 'mototaxiadmin:pricing' %}",
+      "reports.html": "{% url 'mototaxiadmin:reports' %}",
+      "settings.html": "{% url 'mototaxiadmin:settings' %}"
+    };
+    function fix() {
+      document.querySelectorAll("a[href]").forEach(function (a) {
+        if (a.dataset.dxFixed) return;
+        var h = a.getAttribute("href") || "";
+        var file = h.split("#")[0].split("?")[0].split("/").pop();
+        if (file === "login.html") {
+          a.dataset.dxFixed = "1";
+          a.setAttribute("href", "#");
+          a.addEventListener("click", function (e) {
+            e.preventDefault();
+            document.getElementById("dxLogoutForm").submit();
+          });
+        } else if (MAP[file]) {
+          a.dataset.dxFixed = "1";
+          var q = h.indexOf("?") > -1 ? h.slice(h.indexOf("?")) : "";
+          a.setAttribute("href", MAP[file] + q);
+        }
+      });
+    }
+    document.addEventListener("DOMContentLoaded", function () {
+      fix();
+      new MutationObserver(fix).observe(document.body, { childList: true, subtree: true });
+    });
+  })();
+  </script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

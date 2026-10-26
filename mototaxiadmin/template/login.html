@@ -1,0 +1,501 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#ffffff">
+
+    <title>MOTOTAXI Admin — Sign In</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    >
+
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+    <style>
+        .login-error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #b91c1c;
+            padding: 12px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 18px;
+            line-height: 1.5;
+        }
+
+        .login-success {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            padding: 12px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 18px;
+        }
+
+        .field-error {
+            color: #b91c1c;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        .input-with-icon {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 6px;
+            border: 0;
+            background: transparent;
+            color: var(--muted-2);
+            cursor: pointer;
+        }
+
+        .password-toggle:focus-visible {
+            outline: 2px solid var(--brand);
+            border-radius: 4px;
+        }
+
+        .login-submit:disabled {
+            opacity: 0.7;
+            cursor: wait;
+        }
+
+        .login-foot a {
+            color: var(--brand);
+        }
+    </style>
+</head>
+
+<body>
+<div class="login-shell">
+
+    <!-- Brand sidebar -->
+    <aside class="login-aside">
+
+        <div class="deco-blob"></div>
+        <div class="deco-blob tl"></div>
+
+        <div class="brand-row">
+            <div class="logo">M</div>
+            <div class="name">
+                MOTOTAXI
+                <small>Cameroon</small>
+            </div>
+        </div>
+
+        <div class="feat">
+            Manage rides, drivers &amp; e-wallets in one place.
+        </div>
+
+        <ul class="feat-list">
+            <li>
+                <span class="ic">
+                    <svg width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M5 13l4 4 10-10"/>
+                    </svg>
+                </span>
+                Real-time ride &amp; booking tracking
+            </li>
+
+            <li>
+                <span class="ic">
+                    <svg width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M5 13l4 4 10-10"/>
+                    </svg>
+                </span>
+                Commission &amp; wallet settlement
+            </li>
+
+            <li>
+                <span class="ic">
+                    <svg width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M5 13l4 4 10-10"/>
+                    </svg>
+                </span>
+                Driver approval workflow
+            </li>
+
+            <li>
+                <span class="ic">
+                    <svg width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M5 13l4 4 10-10"/>
+                    </svg>
+                </span>
+                Cameroon-specific fare &amp; tax rules
+            </li>
+        </ul>
+
+        <div class="stats-row">
+            <div class="stat">
+                <div class="v">12 000+</div>
+                <div class="l">Active customers</div>
+            </div>
+
+            <div class="stat">
+                <div class="v">850+</div>
+                <div class="l">Verified drivers</div>
+            </div>
+
+            <div class="stat">
+                <div class="v">3</div>
+                <div class="l">Cities live</div>
+            </div>
+        </div>
+
+    </aside>
+
+    <!-- Login panel -->
+    <main class="login-main">
+        <div class="login-card">
+
+            <div class="brand-mobile">
+                <div class="logo">M</div>
+                <div class="name">MOTOTAXI</div>
+            </div>
+
+            <h2 data-i18n="login.welcome">Welcome back</h2>
+
+            <div class="sub" data-i18n="login.subtitle">
+                Sign in to your MOTOTAXI admin account.
+            </div>
+
+            <!-- Language selector -->
+            <div class="lang-switch"
+                 style="margin-bottom:20px;height:36px;">
+
+                <button type="button" data-lang="en" class="active">
+                    English
+                </button>
+
+                <button type="button" data-lang="fr">
+                    Français
+                </button>
+
+            </div>
+
+            <!-- Django login form -->
+            <form
+                id="loginForm"
+                method="post"
+                action="{% url 'mototaxiadmin:login' %}"
+            >
+                {% csrf_token %}
+
+                <input
+                    type="hidden"
+                    name="lang"
+                    id="langInput"
+                    value="{{ request.session.mototaxi_lang|default:'en' }}"
+                >
+
+                <!-- Django messages -->
+                {% if messages %}
+                    {% for message in messages %}
+                        <div
+                            class="{% if message.tags == 'success' %}login-success{% else %}login-error{% endif %}"
+                            role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}"
+                        >
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                <!-- Identifier -->
+                <div class="form-group">
+
+                    <label
+                        for="loginIdentifier"
+                        data-i18n="login.identifier"
+                    >
+                        Mobile number or email
+                    </label>
+
+                    <div class="input-with-icon">
+
+                        <span class="ic">
+                            <svg width="16" height="16"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2">
+                                <circle cx="12" cy="12" r="9"/>
+                                <path d="M3 12h18M12 3a14 14 0 0 1 0 18
+                                         14 14 0 0 1 0-18z"/>
+                            </svg>
+                        </span>
+
+                        <input
+                            class="input"
+                            type="text"
+                            id="loginIdentifier"
+                            name="identifier"
+                            placeholder="+237 6 … or you@example.com"
+                            autocomplete="username"
+                            value="{{ identifier|default:'' }}"
+                            required
+                            autofocus
+                        >
+
+                    </div>
+                </div>
+
+                <!-- Password -->
+                <div class="form-group">
+
+                    <label
+                        for="loginPassword"
+                        data-i18n="login.password"
+                    >
+                        Password
+                    </label>
+
+                    <div class="input-with-icon">
+
+                        <span class="ic">
+                            <svg width="16" height="16"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2">
+                                <rect x="4" y="10" width="16" height="10"
+                                      rx="2"/>
+                                <path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+                            </svg>
+                        </span>
+
+                        <input
+                            class="input"
+                            type="password"
+                            id="loginPassword"
+                            name="password"
+                            placeholder="Enter your password"
+                            autocomplete="current-password"
+                            required
+                            style="padding-right:42px;"
+                        >
+
+                        <button
+                            type="button"
+                            id="togglePw"
+                            class="password-toggle"
+                            aria-label="Show password"
+                            aria-pressed="false"
+                        >
+                            <svg width="16" height="16"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2">
+                                <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7
+                                         S2 12 2 12z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+
+                    </div>
+                </div>
+
+                <!-- Remember me -->
+                <div style="display:flex;justify-content:space-between;
+                            align-items:center;gap:12px;
+                            flex-wrap:wrap;margin-bottom:20px;">
+
+                    <label class="checkbox">
+                        <input
+                            type="checkbox"
+                            id="rememberMe"
+                            name="remember_me"
+                            value="on"
+                        >
+
+                        <span data-i18n="login.remember">
+                            Remember me on this device
+                        </span>
+                    </label>
+
+                    <a
+                        href="#"
+                        id="forgotPasswordLink"
+                        style="color:var(--brand);font-size:13px;
+                               font-weight:600;"
+                        data-i18n="login.forgot"
+                    >
+                        Forgot password?
+                    </a>
+
+                </div>
+
+                <!-- Submit button -->
+                <button
+                    type="submit"
+                    class="btn btn-primary btn-lg btn-block login-submit"
+                    id="loginBtn"
+                >
+                    <span data-i18n="login.signin">Sign In</span>
+
+                    <svg width="16" height="16"
+                         viewBox="0 0 24 24"
+                         fill="none"
+                         stroke="currentColor"
+                         stroke-width="2">
+                        <path d="M5 12h14M13 6l6 6-6 6"/>
+                    </svg>
+                </button>
+
+            </form>
+
+            <!-- Footer -->
+            <div class="login-foot" style="margin-top:22px;">
+
+                <p style="font-size:11.5px;
+                          background:var(--amber-bg);
+                          color:#92400e;
+                          padding:8px 12px;
+                          border-radius:8px;
+                          margin-bottom:14px;"
+                   data-i18n="login.demoNote">
+                    Sign-in credentials are verified by the server.
+                </p>
+
+                <p>
+                    <span data-i18n="login.noAccount">
+                        Need access for your team?
+                    </span>
+
+                    <a
+                        href="mailto:support@mototaxi.cm"
+                        data-i18n="login.contact"
+                    >
+                        Contact your MOTOTAXI account manager
+                    </a>
+                </p>
+
+            </div>
+
+        </div>
+    </main>
+
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="{% static 'js/i18n.js' %}"></script>
+<script src="{% static 'js/ui.js' %}"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const passwordInput = document.getElementById("loginPassword");
+    const togglePassword = document.getElementById("togglePw");
+    const languageInput = document.getElementById("langInput");
+    const loginForm = document.getElementById("loginForm");
+    const loginButton = document.getElementById("loginBtn");
+
+    // Restore the selected language.
+    const initialLanguage = languageInput.value || "en";
+    document.documentElement.lang = initialLanguage;
+
+    document.querySelectorAll("[data-lang]").forEach(function (button) {
+        button.classList.toggle(
+            "active",
+            button.dataset.lang === initialLanguage
+        );
+    });
+
+    // Show or hide the password.
+    togglePassword.addEventListener("click", function () {
+        const showingPassword = passwordInput.type === "password";
+
+        passwordInput.type = showingPassword ? "text" : "password";
+
+        togglePassword.setAttribute(
+            "aria-pressed",
+            String(showingPassword)
+        );
+
+        togglePassword.setAttribute(
+            "aria-label",
+            showingPassword ? "Hide password" : "Show password"
+        );
+    });
+
+    // Language selection.
+    document.querySelectorAll("[data-lang]").forEach(function (button) {
+        button.addEventListener("click", function () {
+            const selectedLanguage = button.dataset.lang;
+
+            languageInput.value = selectedLanguage;
+            document.documentElement.lang = selectedLanguage;
+
+            document.querySelectorAll("[data-lang]").forEach(
+                function (item) {
+                    item.classList.toggle(
+                        "active",
+                        item.dataset.lang === selectedLanguage
+                    );
+                }
+            );
+
+            // Update translations if the existing i18n.js exposes this API.
+            // The form remains usable even if no translation API is exposed.
+            if (typeof window.setLanguage === "function") {
+                window.setLanguage(selectedLanguage);
+            } else if (typeof window.changeLanguage === "function") {
+                window.changeLanguage(selectedLanguage);
+            }
+        });
+    });
+
+    // Do not redirect to dashboard.html. Django handles authentication.
+    loginForm.addEventListener("submit", function (event) {
+        const identifier =
+            document.getElementById("loginIdentifier").value.trim();
+
+        const password = passwordInput.value;
+
+        if (!identifier || !password) {
+            event.preventDefault();
+
+            if (!identifier) {
+                document.getElementById("loginIdentifier").focus();
+            } else {
+                passwordInput.focus();
+            }
+
+            return;
+        }
+
+        // Allow the normal POST request to reach Django.
+        // Prevent double submission while the request is in progress.
+        loginButton.disabled = true;
+        loginButton.setAttribute("aria-busy", "true");
+    });
+
+    // Avoid a dead link when no password-reset route has been configured.
+    document.getElementById("forgotPasswordLink").addEventListener(
+        "click",
+        function (event) {
+            event.preventDefault();
+            alert("Please contact your MOTOTAXI account manager to reset your password.");
+        }
+    );
+});
+</script>
+
+</body>
+</html>

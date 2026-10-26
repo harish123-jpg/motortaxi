@@ -20,8 +20,8 @@ from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
+    path("", include("mototaxiadmin.urls")),
     path('admin/', admin.site.urls),
-
     path('api/v1/auth/', include('users.urls')),
     path('api/v1/drivers/', include('drivers.urls')),
     path('api/v1/vehicles/', include('vehicles.urls')),

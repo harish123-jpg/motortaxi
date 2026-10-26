@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "location_search",
     'core',
     'rides',
+    'mototaxiadmin',
 
 
     "rest_framework",
@@ -71,7 +72,7 @@ ROOT_URLCONF = 'motoride.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        "DIRS": [BASE_DIR / "mototaxiadmin" / "template"],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
