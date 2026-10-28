@@ -1,96 +1,140 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MOTOTAXI Admin — Reports</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <div class="demo-banner"><span>● DEMO DATA — Static admin template. No backend connected. All figures are illustrative.</span></div>
-
   <div class="app" id="app">
     <aside class="sidebar" id="sidebar"></aside>
     <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
     <header class="topbar" id="topbar"></header>
 
     <main class="main">
-      <!-- Breadcrumb -->
+
       <div class="breadcrumb">
-        <a href="dashboard.html">Home</a>
+        <a href="{% url 'mototaxiadmin:dashboard' %}">Home</a>
         <span class="sep">/</span>
         <span class="current">Reports &amp; Analytics</span>
       </div>
 
-      <!-- Page head -->
       <div class="page-head">
         <div>
           <h1 class="title">Reports &amp; Analytics</h1>
-          <p class="desc">Track revenue, commission, driver payouts, rides and cancellation trends over time.</p>
+          <p class="desc">
+            Track revenue, commission, driver payouts, rides and cancellations over time.
+          </p>
         </div>
+
         <div class="actions">
-          <button class="btn" id="btnExport">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+          <button class="btn" id="btnExport" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>
+            </svg>
             Export CSV
           </button>
-          <button class="btn btn-primary" id="btnPrint">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6h-2M6 14h12v7H6z"/></svg>
+
+          <button class="btn btn-primary" id="btnPrint" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9V3h12v6M6 18H4v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6h-2M6 14h12v7H6z"/>
+            </svg>
             Print Report
           </button>
         </div>
       </div>
 
-      <!-- Date range selector -->
+      <!-- Date range -->
       <div class="card" style="margin-bottom:22px;">
         <div class="card-head">
           <div>
             <h3>Date Range</h3>
-            <div class="sub">Pick a window of days — charts, stats and the table recompute instantly.</div>
+            <div class="sub">
+              Select a date range for the charts, statistics and daily report.
+            </div>
           </div>
-          <span class="badge badge-success" id="rangeBadge">Last 30 days</span>
+
+          <span class="badge badge-success" id="rangeBadge">
+            {{ filters.date_from }} to {{ filters.date_to }}
+          </span>
         </div>
+
         <div class="card-body">
           <div class="toolbar" style="margin-bottom:0;">
-            <label class="flex items-center gap-8" style="font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;">
+
+            <label class="flex items-center gap-8"
+                   style="font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;">
               From
-              <input type="date" class="select" id="dateFrom" style="min-width:160px;">
+              <input type="date"
+                     class="select"
+                     id="dateFrom"
+                     value="{{ filters.date_from }}"
+                     style="min-width:160px;">
             </label>
-            <label class="flex items-center gap-8" style="font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;">
+
+            <label class="flex items-center gap-8"
+                   style="font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;">
               To
-              <input type="date" class="select" id="dateTo" style="min-width:160px;">
+              <input type="date"
+                     class="select"
+                     id="dateTo"
+                     value="{{ filters.date_to }}"
+                     style="min-width:160px;">
             </label>
-            <button class="btn btn-sm" id="btnRange7">Last 7 days</button>
-            <button class="btn btn-sm" id="btnRange30">Last 30 days</button>
-            <button class="btn btn-sm" id="btnRange90">Last 90 days</button>
+
+            <button class="btn btn-sm" id="btnRange7" type="button">
+              Last 7 days
+            </button>
+
+            <button class="btn btn-sm" id="btnRange30" type="button">
+              Last 30 days
+            </button>
+
+            <button class="btn btn-sm" id="btnRange90" type="button">
+              Last 90 days
+            </button>
+
             <span class="spacer"></span>
-            <button class="btn btn-primary btn-sm" id="btnApplyRange">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg>
+
+            <button class="btn btn-primary btn-sm" id="btnApplyRange" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12l5 5L20 7"/>
+              </svg>
               Apply Range
             </button>
+
           </div>
         </div>
       </div>
 
-      <!-- Summary stat cards -->
+      <!-- Summary cards -->
       <div class="stat-grid" id="statGrid"></div>
 
-      <!-- Charts row -->
+      <!-- Charts -->
       <div class="chart-grid even">
+
         <div class="card">
           <div class="card-head">
             <div>
               <h3>Revenue Over Time</h3>
-              <div class="sub">Daily gross ride revenue</div>
+              <div class="sub">Daily revenue from completed rides</div>
             </div>
           </div>
           <div class="card-body">
-            <div class="chart-canvas-wrap"><canvas id="chartRevenue"></canvas></div>
+            <div class="chart-canvas-wrap">
+              <canvas id="chartRevenue"></canvas>
+            </div>
           </div>
         </div>
+
         <div class="card">
           <div class="card-head">
             <div>
@@ -99,31 +143,40 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="chart-canvas-wrap"><canvas id="chartRides"></canvas></div>
+            <div class="chart-canvas-wrap">
+              <canvas id="chartRides"></canvas>
+            </div>
           </div>
         </div>
+
         <div class="card">
           <div class="card-head">
             <div>
               <h3>Revenue by Vehicle Type</h3>
-              <div class="sub">Bike vs Car total revenue share</div>
+              <div class="sub">Bike, Car and Auto revenue share</div>
             </div>
           </div>
           <div class="card-body">
-            <div class="chart-canvas-wrap"><canvas id="chartVehicle"></canvas></div>
+            <div class="chart-canvas-wrap">
+              <canvas id="chartVehicle"></canvas>
+            </div>
           </div>
         </div>
+
         <div class="card">
           <div class="card-head">
             <div>
               <h3>Payment Status Distribution</h3>
-              <div class="sub">Successful · Pending · Failed</div>
+              <div class="sub">Paid, pending and failed rides</div>
             </div>
           </div>
           <div class="card-body">
-            <div class="chart-canvas-wrap"><canvas id="chartTxStatus"></canvas></div>
+            <div class="chart-canvas-wrap">
+              <canvas id="chartTxStatus"></canvas>
+            </div>
           </div>
         </div>
+
       </div>
 
       <!-- Detailed report table -->
@@ -131,17 +184,33 @@
         <div class="card-head">
           <div>
             <h3>Detailed Daily Report</h3>
-            <div class="sub">Per-day breakdown of revenue, commission, payouts and cancellations</div>
+            <div class="sub">
+              Daily revenue, commission, driver payouts and cancellations.
+            </div>
           </div>
         </div>
+
         <div class="card-body">
+
           <div class="toolbar" style="margin-bottom:14px;">
             <div class="search">
               <span class="ic">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5"/></svg>
+                <svg viewBox="0 0 24 24"
+                     fill="none"
+                     stroke="currentColor"
+                     stroke-width="2"
+                     width="16"
+                     height="16">
+                  <circle cx="11" cy="11" r="7"/>
+                  <path d="M21 21l-4.5-4.5"/>
+                </svg>
               </span>
-              <input type="search" id="searchDate" placeholder="Search by date (e.g. 26 Oct, 2026-10-26)…">
+
+              <input type="search"
+                     id="searchDate"
+                     placeholder="Search by date (e.g. 26 Oct, 2026-10-26)…">
             </div>
+
             <select class="select" id="sortKey" aria-label="Sort by">
               <option value="date|asc">Date — Oldest first</option>
               <option value="date|desc">Date — Newest first</option>
@@ -150,11 +219,16 @@
               <option value="rides|desc">Rides — High to Low</option>
               <option value="rides|asc">Rides — Low to High</option>
             </select>
-            <button class="btn btn-soft" id="btnResetTable">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 4v4h-4"/></svg>
+
+            <button class="btn btn-soft" id="btnResetTable" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12a9 9 0 1 1-3-6.7L21 8"/>
+                <path d="M21 4v4h-4"/>
+              </svg>
               Reset
             </button>
           </div>
+
           <div class="table-scroll">
             <table class="tbl" id="reportsTable">
               <thead>
@@ -171,17 +245,25 @@
               <tbody></tbody>
             </table>
           </div>
+
         </div>
       </div>
+
     </main>
   </div>
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="js/demo-data.js"></script>
-  <script src="js/i18n.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/reports.js"></script>
+  <!-- Database data generated by Django -->
+  {{ reports_data_json|json_script:"reports-data" }}
+
+  <!-- Shared scripts -->
+  <script src="{% static 'js/demo-data.js' %}"></script>
+  <script src="{% static 'js/i18n.js' %}"></script>
+  <script src="{% static 'js/app.js' %}"></script>
+  <script src="{% static 'js/ui.js' %}"></script>
+
+  <!-- Reports page logic -->
+  <script src="{% static 'js/reports.js' %}"></script>
 </body>
 </html>
