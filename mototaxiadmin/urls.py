@@ -1,4 +1,3 @@
-"""MOTOTAXI Admin: URL routing."""
 from django.urls import path
 
 from mototaxiadmin.views import (
@@ -113,7 +112,11 @@ urlpatterns = [
     # Settings
     path("settings/", preferences.settings_view, name="settings"),
     path("settings/save/", preferences.settings_save, name="settings_save"),
-
+    path(
+        "settings/change-password/",
+        preferences.settings_change_password,
+        name="settings_change_password",
+    ),
     # CSV exports
     path("export/users.csv", exports.export_users_csv, name="export_users_csv"),
     path("export/drivers.csv", exports.export_drivers_csv, name="export_drivers_csv"),

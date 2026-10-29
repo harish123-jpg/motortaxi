@@ -1,306 +1,437 @@
+
+{% load static %}
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="{{ settings_form.language|default:'en' }}"
+      data-theme="{{ settings_form.theme|default:'light' }}">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MOTOTAXI Admin — Settings</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="css/style.css">
+
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+  <script>
+    window.MOTOTAXI_SETTINGS_URLS = {
+      save: "{% url 'mototaxiadmin:settings_save' %}",
+      changePassword: "{% url 'mototaxiadmin:settings_change_password' %}"
+    };
+
+    window.MOTOTAXI_URLS = {
+      dashboard: "{% url 'mototaxiadmin:dashboard' %}",
+      settings: "{% url 'mototaxiadmin:settings' %}",
+      logout: "{% url 'mototaxiadmin:logout' %}",
+      logoutMethod: "POST"
+    };
+
+    window.MOTOTAXI_USER = {
+      full_name: "{{ request.user.full_name|default:request.user.get_username|escapejs }}",
+      email: "{{ request.user.email|default:''|escapejs }}"
+    };
+  </script>
 </head>
+
 <body>
-  <div class="demo-banner"><span>● DEMO DATA — Static admin template. No backend connected. All figures are illustrative.</span></div>
 
-  <div class="app" id="app">
-    <aside class="sidebar" id="sidebar"></aside>
-    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
-    <header class="topbar" id="topbar"></header>
+<div class="app" id="app">
 
-    <main class="main">
-      <!-- Breadcrumb -->
-      <div class="breadcrumb">
-        <a href="dashboard.html">Home</a>
-        <span class="sep">/</span>
-        <span class="current">Settings</span>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <header class="topbar" id="topbar"></header>
+
+  <main class="main"
+        data-active-page="settings"
+        data-page-name="Settings">
+
+    <!-- Breadcrumb -->
+
+    <div class="breadcrumb">
+      <a href="{% url 'mototaxiadmin:dashboard' %}">Home</a>
+      <span class="sep">/</span>
+      <span class="current">Settings</span>
+    </div>
+
+    <!-- Page heading -->
+
+    <div class="page-head">
+      <div>
+        <h1 class="title">Settings</h1>
+        <p class="desc">
+          Manage your profile, language, theme and account security.
+        </p>
       </div>
 
-      <!-- Page head -->
-      <div class="page-head">
-        <div>
-          <h1 class="title">Settings</h1>
-          <p class="desc">Manage application preferences, profile, notifications, admin roles and API configuration.</p>
-        </div>
-        <div class="actions">
-          <button class="btn btn-primary" id="btnSaveAll">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4 10-10"/></svg>
-            Save All Changes
-          </button>
-        </div>
-      </div>
+      <button class="btn btn-primary"
+              type="submit"
+              form="settingsForm">
+        Save Changes
+      </button>
+    </div>
 
-      <!-- ============================================================
-           Card 1: General Application Settings
-           ============================================================ -->
-      <section class="card" id="cardGeneral" style="margin-bottom:22px;">
+    <!-- Django messages -->
+
+    {% if messages %}
+      <div style="margin-bottom:18px;">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }}"
+               role="alert"
+               style="padding:12px 16px;margin-bottom:8px;border-radius:8px;">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <!-- Settings form -->
+
+    <form id="settingsForm"
+          method="post"
+          action="{% url 'mototaxiadmin:settings_save' %}">
+
+      {% csrf_token %}
+
+      <!-- General settings -->
+
+      <section class="card" style="margin-bottom:22px;">
+
         <div class="card-head">
           <div>
-            <h3>General Application Settings</h3>
-            <div class="sub">Platform-wide configuration</div>
+            <h3>General Settings</h3>
+            <div class="sub">
+              Language, appearance, currency and timezone.
+            </div>
           </div>
-          <span class="tag" style="background:var(--brand-light);color:var(--brand);">Read / Write</span>
         </div>
+
         <div class="card-body">
-          <div class="field-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:18px 24px;">
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px;">
 
             <!-- Language -->
+
             <div class="form-group">
               <label>Language</label>
-              <div class="flex gap-12 items-center" style="height:40px;">
-                <label class="radio"><input type="radio" name="lang" value="en" data-lang-radio> English</label>
-                <label class="radio"><input type="radio" name="lang" value="fr" data-lang-radio> French</label>
+
+              <div class="flex gap-12 items-center"
+                   style="height:40px;">
+
+                <label class="radio">
+                  <input
+                    type="radio"
+                    name="language"
+                    value="en"
+                    data-lang-radio
+                    {% if settings_form.language == 'en' %}checked{% endif %}
+                  >
+                  English
+                </label>
+
+                <label class="radio">
+                  <input
+                    type="radio"
+                    name="language"
+                    value="fr"
+                    data-lang-radio
+                    {% if settings_form.language == 'fr' %}checked{% endif %}
+                  >
+                  French
+                </label>
+
               </div>
-              <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">Live switch — applies across the entire admin panel.</div>
             </div>
 
             <!-- Theme -->
+
             <div class="form-group">
               <label>Theme</label>
-              <div class="flex gap-12 items-center" style="height:40px;flex-wrap:wrap;">
-                <label class="radio"><input type="radio" name="theme" value="light" data-theme-radio> Light</label>
-                <label class="radio"><input type="radio" name="theme" value="dark" data-theme-radio> Dark</label>
-                <label class="radio"><input type="radio" name="theme" value="system" data-theme-radio> System</label>
+
+              <div class="flex gap-12 items-center"
+                   style="height:40px;flex-wrap:wrap;">
+
+                <label class="radio">
+                  <input
+                    type="radio"
+                    name="theme"
+                    value="light"
+                    data-theme-radio
+                    {% if settings_form.theme == 'light' %}checked{% endif %}
+                  >
+                  Light
+                </label>
+
+                <label class="radio">
+                  <input
+                    type="radio"
+                    name="theme"
+                    value="dark"
+                    data-theme-radio
+                    {% if settings_form.theme == 'dark' %}checked{% endif %}
+                  >
+                  Dark
+                </label>
+
+                <label class="radio">
+                  <input
+                    type="radio"
+                    name="theme"
+                    value="system"
+                    data-theme-radio
+                    {% if settings_form.theme == 'system' %}checked{% endif %}
+                  >
+                  System
+                </label>
+
               </div>
-              <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">System follows your OS preference via <code>prefers-color-scheme</code>.</div>
             </div>
 
             <!-- Currency -->
+
             <div class="form-group">
               <label>Currency</label>
-              <input class="input" type="text" value="FCFA" disabled>
-              <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">MOTOTAXI is Cameroon-only — currency is fixed to FCFA (XAF).</div>
+              <input
+                class="input"
+                value="{{ settings_form.currency|default:'FCFA' }}"
+                disabled
+              >
             </div>
 
             <!-- Timezone -->
+
             <div class="form-group">
               <label>Timezone</label>
-              <input class="input" type="text" value="Africa/Douala (WAT, UTC+1)" disabled>
-              <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">Single-zone deployment — all timestamps are WAT.</div>
+              <input
+                class="input"
+                value="{{ settings_form.timezone|default:'Africa/Douala (WAT, UTC+1)' }}"
+                disabled
+              >
             </div>
 
           </div>
         </div>
       </section>
 
-      <!-- ============================================================
-           Card 2: Profile Information
-           ============================================================ -->
-      <section class="card" id="cardProfile" style="margin-bottom:22px;">
+      <!-- Profile information -->
+
+      <section class="card" style="margin-bottom:22px;">
+
         <div class="card-head">
           <div>
             <h3>Profile Information</h3>
-            <div class="sub">Your admin profile</div>
+            <div class="sub">
+              Update your signed-in admin account.
+            </div>
           </div>
-          <span class="tag" style="background:var(--blue-bg);color:var(--blue);">Super Admin</span>
+
+          <span class="tag">
+            {{ profile.active_role|default:"Admin" }}
+          </span>
         </div>
-        <div class="card-body flush">
-          <div class="profile-banner">
-            <span class="avatar">AD</span>
+
+        <div class="card-body">
+
+          <!-- Profile preview -->
+
+          <div class="profile-banner"
+               style="display:flex;align-items:center;gap:14px;margin-bottom:22px;">
+
+            <span class="avatar" id="profileAvatar">
+              {{ profile.full_name|default:profile.email|default:request.user.get_username|slice:":2"|upper }}
+            </span>
+
             <div>
-              <div class="name">Admin Demo</div>
-              <div class="sub">admin@mototaxi.cm · +237 6 90 00 00 00</div>
+              <div class="name" id="profileDisplayName">
+                {{ profile.full_name|default:profile.email|default:request.user.get_username }}
+              </div>
+
+              <div class="sub" id="profileDisplayContact">
+                {{ profile.email }}
+                {% if profile.phone_number %}
+                  · {{ profile.phone_number }}
+                {% endif %}
+              </div>
             </div>
+
           </div>
-          <div style="padding:18px;">
-            <div class="field-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:18px 24px;">
-              <div class="form-group">
-                <label>Full Name</label>
-                <input class="input" type="text" id="profileName" value="Admin Demo">
-              </div>
-              <div class="form-group">
-                <label>Email</label>
-                <input class="input" type="email" id="profileEmail" value="admin@mototaxi.cm">
-              </div>
-              <div class="form-group">
-                <label>Phone Number</label>
-                <input class="input" type="tel" id="profilePhone" value="+237 6 90 00 00 00">
-              </div>
-              <div class="form-group">
-                <label>Role</label>
-                <input class="input" type="text" value="Super Admin" disabled>
-                <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">Your role is assigned by the platform owner — it cannot be self-edited.</div>
-              </div>
+
+          <!-- Profile fields -->
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;">
+
+            <div class="form-group">
+              <label for="profileName">Full Name</label>
+
+              <input
+                class="input"
+                id="profileName"
+                name="full_name"
+                value="{{ profile.full_name|default:'' }}"
+                autocomplete="name"
+                required
+              >
             </div>
+
+            <div class="form-group">
+              <label for="profileEmail">Email Address</label>
+
+              <input
+                class="input"
+                id="profileEmail"
+                type="email"
+                name="email"
+                value="{{ profile.email|default:'' }}"
+                autocomplete="email"
+                required
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="profilePhone">Phone Number</label>
+
+              <input
+                class="input"
+                id="profilePhone"
+                type="tel"
+                name="phone_number"
+                value="{{ profile.phone_number|default:'' }}"
+                autocomplete="tel"
+              >
+            </div>
+
+            <div class="form-group">
+              <label>Admin Role</label>
+
+              <input
+                class="input"
+                value="{{ profile.active_role|default:'Admin' }}"
+                disabled
+              >
+            </div>
+
           </div>
         </div>
-        <div class="card-foot flex gap-8" style="justify-content:flex-end;">
-          <button class="btn btn-ghost btn-sm" id="btnChangePassword">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+
+        <div class="card-foot"
+             style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;">
+
+          <button
+            class="btn btn-ghost"
+            type="button"
+            id="btnChangePassword">
             Change Password
           </button>
-          <button class="btn btn-primary btn-sm" id="btnSaveProfile">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M5 13l4 4 10-10"/></svg>
+
+          <button class="btn btn-primary" type="submit">
             Save Profile
           </button>
+
         </div>
       </section>
 
-      <!-- ============================================================
-           Card 3: Notification Preferences
-           ============================================================ -->
-      <section class="card" id="cardNotifications" style="margin-bottom:22px;">
-        <div class="card-head">
-          <div>
-            <h3>Notification Preferences</h3>
-            <div class="sub">Choose what to be notified about and how</div>
-          </div>
-          <span class="tag" style="background:var(--purple-bg);color:var(--purple);">7 channels</span>
-        </div>
-        <div class="card-body" id="notifBody">
-          <!-- Toggle rows injected here -->
-        </div>
-      </section>
+    </form>
 
-      <!-- ============================================================
-           Card 4: Admin Roles & Permissions
-           ============================================================ -->
-      <section class="card" id="cardRoles" style="margin-bottom:22px;">
-        <div class="card-head">
-          <div>
-            <h3>Admin Roles &amp; Permissions</h3>
-            <div class="sub">Manage admin user roles across the platform</div>
+    <!-- Admin accounts -->
+
+    <section class="card" style="margin-bottom:22px;">
+
+      <div class="card-head">
+        <div>
+          <h3>Admin Accounts</h3>
+          <div class="sub">
+            Admin accounts registered in the database. Read-only list.
           </div>
-          <span class="tag" style="background:var(--green-bg);color:var(--green);">5 admins</span>
         </div>
-        <div class="card-body flush">
-          <div class="table-scroll">
-            <table class="tbl" id="adminsTable">
-              <thead>
+      </div>
+
+      <div class="card-body flush">
+
+        <div class="table-scroll">
+          <table class="tbl">
+
+            <thead>
+              <tr>
+                <th>Admin</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Date Joined</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for admin in admins %}
                 <tr>
-                  <th>Admin</th>
-                  <th>Role</th>
-                  <th>Email</th>
-                  <th>Last Active</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <td>
+                    {{ admin.full_name|default:admin.email|default:admin.get_username }}
+                  </td>
+
+                  <td>{{ admin.email }}</td>
+
+                  <td>
+                    {{ admin.active_role|default:"Admin" }}
+                  </td>
+
+                  <td>
+                    {{ admin.date_joined|date:"d M Y" }}
+                  </td>
+
+                  <td>
+                    {% if admin.is_active %}
+                      <span class="badge badge-success">Active</span>
+                    {% else %}
+                      <span class="badge badge-muted">Inactive</span>
+                    {% endif %}
+                  </td>
                 </tr>
-              </thead>
-              <tbody id="adminsBody"></tbody>
-            </table>
+
+              {% empty %}
+                <tr>
+                  <td colspan="5">No admin accounts found.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+
+          </table>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- API configuration -->
+
+    <section class="card">
+
+      <div class="card-head">
+        <div>
+          <h3>API Configuration</h3>
+          <div class="sub">
+            Manage secrets through secure server-side configuration.
           </div>
         </div>
-        <div class="card-foot flex gap-8" style="justify-content:flex-end;">
-          <button class="btn btn-primary btn-sm" id="btnAddAdmin">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
-            Add Admin
-          </button>
-        </div>
-      </section>
+      </div>
 
-      <!-- ============================================================
-           Card 5: API Configuration
-           ============================================================ -->
-      <section class="card" id="cardApi" style="margin-bottom:22px;">
-        <div class="card-head">
-          <div>
-            <h3>API Configuration</h3>
-            <div class="sub">Visual only — connect your backend team to populate these secrets.</div>
-          </div>
-          <span class="tag" style="background:var(--amber-bg);color:#b45309;">UI placeholder</span>
-        </div>
-        <div class="card-body">
-          <div class="demo-banner" style="border-radius:8px;border-bottom:none;border:1px solid var(--amber);justify-content:flex-start;margin-bottom:18px;">
-            <span>⚠ This section is a UI placeholder only. Do not enter real secrets — this is a static template.</span>
-          </div>
+      <div class="card-body">
+        API keys and webhook secrets are not stored or edited on this page.
+        Use environment variables or a dedicated secured backend feature.
+      </div>
 
-          <div class="field-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:18px 24px;">
+    </section>
 
-            <!-- API Base URL -->
-            <div class="form-group" style="grid-column:1 / -1;">
-              <label>API Base URL</label>
-              <div class="input-group">
-                <input class="input" type="url" id="apiBaseUrl" value="https://api.mototaxi.cm/v1">
-                <button class="btn" id="btnTestConn" type="button">Test Connection</button>
-              </div>
-              <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">Base URL for all MOTOTAXI admin API requests.</div>
-            </div>
+  </main>
+</div>
 
-            <!-- API Key -->
-            <div class="form-group" style="grid-column:1 / -1;">
-              <label>API Key</label>
-              <div class="flex gap-8 items-center">
-                <div class="input-group" style="flex:1;">
-                  <input class="input" type="password" id="apiKey" value="sk_test_••••••••••••••••">
-                  <button class="btn" id="btnToggleApiKey" type="button">Show</button>
-                </div>
-                <button class="btn" id="btnCopyApiKey" type="button" aria-label="Copy API key">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
-                  Copy
-                </button>
-              </div>
-              <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">Server-to-server secret. Never expose in client-side code.</div>
-            </div>
+<!-- Toast container -->
 
-            <!-- Webhook URL -->
-            <div class="form-group" style="grid-column:1 / -1;">
-              <label>Webhook URL</label>
-              <input class="input" type="url" id="webhookUrl" value="https://admin.mototaxi.cm/webhooks/rides">
-              <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">Endpoint that receives ride lifecycle events from the platform.</div>
-            </div>
+<div class="toast-container" id="toastContainer"></div>
 
-            <!-- Webhook Secret -->
-            <div class="form-group" style="grid-column:1 / -1;">
-              <label>Webhook Secret</label>
-              <div class="input-group">
-                <input class="input" type="password" id="webhookSecret" value="whsec_••••••••••••••••">
-                <button class="btn" id="btnCopyWebhookSecret" type="button">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
-                  Copy
-                </button>
-              </div>
-              <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">Used to verify incoming webhook signatures (HMAC SHA-256).</div>
-            </div>
+<!-- Shared scripts -->
 
-            <!-- Rate Limit -->
-            <div class="form-group">
-              <label>Rate Limit (req/min)</label>
-              <input class="input" type="number" id="rateLimit" value="600" min="0" step="10">
-              <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">Per-key throttle window.</div>
-            </div>
+<script src="{% static 'js/demo-data.js' %}"></script>
+<script src="{% static 'js/i18n.js' %}"></script>
+<script src="{% static 'js/app.js' %}"></script>
+<script src="{% static 'js/ui.js' %}"></script>
+<script src="{% static 'js/settings.js' %}"></script>
 
-            <!-- Environment -->
-            <div class="form-group">
-              <label>Environment</label>
-              <select class="select" id="environment">
-                <option value="sandbox" selected>Sandbox</option>
-                <option value="production">Production</option>
-              </select>
-              <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">Switch to Production only after signing the operations addendum.</div>
-            </div>
-
-          </div>
-        </div>
-        <div class="card-foot flex gap-8" style="justify-content:flex-end;">
-          <button class="btn btn-ghost btn-sm" id="btnSaveConfig">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M5 13l4 4 10-10"/></svg>
-            Save Configuration
-          </button>
-          <button class="btn btn-primary btn-sm" id="btnRegenKey">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M14 7l3-3 3 3-3 3M5 19l5-5M14 7l-9 9M16 9l-2-2"/></svg>
-            Regenerate API Key
-          </button>
-        </div>
-      </section>
-
-    </main>
-  </div>
-
-  <div class="toast-container" id="toastContainer"></div>
-
-  <script src="js/demo-data.js"></script>
-  <script src="js/i18n.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/settings.js"></script>
 </body>
 </html>
